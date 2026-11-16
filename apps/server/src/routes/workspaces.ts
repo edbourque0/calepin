@@ -3,9 +3,9 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { invites, user, workspaceMembers, workspaces } from "../db/schema.js";
+import { instanceAdmins, invites, user, workspaceMembers, workspaces } from "../db/schema.js";
 import type { AppEnv } from "../http.js";
-import { emitWorkspace, onWorkspace } from "../lib/events.js";
+import { emitWorkspace, onGlobal, onWorkspace } from "../lib/events.js";
 import { createInvite, inviteUrl } from "../lib/invites.js";
 import { createWorkspace, getMembership } from "../lib/workspaces.js";
 
@@ -20,7 +20,8 @@ export const workspaceRoutes = new Hono<AppEnv>()
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
       .where(eq(workspaceMembers.userId, me.id))
       .orderBy(asc(workspaces.createdAt));
-    return c.json({ user: me, workspaces: rows });
+    const [admin] = await db.select().from(instanceAdmins).where(eq(instanceAdmins.userId, me.id));
+    return c.json({ user: me, workspaces: rows, isAdmin: !!admin });
   })
 
   .post("/workspaces", async (c) => {
@@ -168,14 +169,19 @@ export const workspaceRoutes = new Hono<AppEnv>()
           stream.writeSSE(msg).catch(() => {});
         }, 150);
       });
+      const offGlobal = onGlobal(() => {
+        stream.writeSSE({ event: "reset", data: "{}" }).catch(() => {});
+      });
       stream.onAbort(() => {
         off();
+        offGlobal();
       });
       while (!stream.aborted) {
         await stream.writeSSE({ event: "ping", data: "" });
         await stream.sleep(25_000);
       }
       off();
+      offGlobal();
     });
   });
 

@@ -21,9 +21,10 @@ import {
   createRowWithValues,
   getDatabase,
   getRows,
-  type LinkedRow,
+  formatValue,
   options,
   peopleNames,
+  personIds,
   PROPERTY_TYPES,
   type Property,
   updateRowValues,
@@ -253,7 +254,7 @@ function buildServer(user: AppUser) {
     },
     guard(async ({ page_id, markdown }) => {
       await requirePage(user, page_id, true);
-      await writePageMarkdown(page_id, user.id, markdown, "append");
+      await writePageMarkdown(page_id, user.id, markdown, "append", { agent: true });
       return ok({ id: page_id, url: pageUrl(page_id), appended: true });
     }),
   );
@@ -263,13 +264,14 @@ function buildServer(user: AppUser) {
     {
       title: "Replace page content",
       description:
-        "Replaces the whole content of a page with Markdown. Read the page first; prefer append_to_page when adding.",
+        "Replaces the whole content of a page with Markdown. Read the page first; prefer append_to_page when adding. " +
+        "The previous content is kept in the page's version history.",
       inputSchema: { page_id: z.string().uuid(), markdown: z.string() },
       annotations: { destructiveHint: true },
     },
     guard(async ({ page_id, markdown }) => {
       await requirePage(user, page_id, true);
-      await writePageMarkdown(page_id, user.id, markdown, "replace");
+      await writePageMarkdown(page_id, user.id, markdown, "replace", { agent: true });
       return ok({ id: page_id, url: pageUrl(page_id), replaced: true });
     }),
   );
@@ -288,7 +290,7 @@ function buildServer(user: AppUser) {
     },
     guard(async ({ page_id, title, icon, parent_id }) => {
       const access = await requirePage(user, page_id, true);
-      if (title) await editDocument(page_id, user.id, (doc) => setTitle(doc, title));
+      if (title) await editDocument(page_id, user.id, (doc) => setTitle(doc, title), { agent: true });
       if (icon !== undefined) await db.update(pages).set({ icon }).where(eq(pages.id, page_id));
       if (parent_id !== undefined) {
         if (!access.isMember) return fail("Only workspace members can move pages.");
@@ -473,40 +475,6 @@ function buildServer(user: AppUser) {
 }
 
 /* ---------- Formatting databases for agents ---------- */
-
-function personIds(properties: Property[], rows: { props: Record<string, unknown> }[]) {
-  const ids = new Set<string>();
-  for (const p of properties)
-    if (p.type === "person")
-      for (const r of rows) for (const id of (r.props[p.id] as string[] | null) ?? []) ids.add(id);
-  return [...ids];
-}
-
-function formatValue(prop: Property, value: unknown, people: Map<string, string>): string {
-  if (value === null || value === undefined) return "";
-  const opts = options(prop);
-  switch (prop.type) {
-    case "select":
-    case "status":
-      return opts.find((o) => o.id === value)?.name ?? "";
-    case "multi_select":
-      return (value as string[]).map((id) => opts.find((o) => o.id === id)?.name ?? id).join(", ");
-    case "checkbox":
-      return value ? "✓" : "";
-    case "person":
-      return (value as string[]).map((id) => people.get(id) ?? id).join(", ");
-    case "relation":
-      return (value as LinkedRow[]).map((r) => `${r.title || "Untitled"} (${r.id})`).join(", ");
-    case "rollup":
-      return Array.isArray(value)
-        ? value.join(", ")
-        : typeof value === "number"
-          ? String(Math.round(value * 100) / 100)
-          : String(value);
-    default:
-      return String(value);
-  }
-}
 
 async function describeDatabase(databaseId: string, limit: number) {
   const database = await getDatabase(databaseId);

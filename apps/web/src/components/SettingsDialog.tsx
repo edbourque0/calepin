@@ -1,25 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogOut, Monitor, Moon, Settings2, Sun, Trash2, Users, X } from "lucide-react";
+import {
+  DatabaseBackup,
+  Download,
+  KeyRound,
+  LogOut,
+  Monitor,
+  Moon,
+  Settings2,
+  Sun,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, type ApiToken, type Members, type Role } from "@/lib/api";
 import { type Lang, useI18n, useRelativeTime } from "@/lib/i18n";
 import { type ThemePref, useTheme } from "@/lib/theme";
 import { useWorkspace } from "@/lib/workspace";
+import { BackupsTab } from "./BackupsTab";
 import { CopyButton, RoleSelect } from "./SharePanel";
 import { Avatar, Button, Dialog, IconButton, Spinner, Tabs } from "./ui";
 
-type Tab = "general" | "workspace" | "tokens";
+type Tab = "general" | "workspace" | "tokens" | "backups";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<Tab>("general");
+  const { me } = useWorkspace();
   useEffect(() => {
     if (open) setTab("general");
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} className="max-w-xl">
+    <Dialog open={open} onClose={onClose} className="max-w-2xl">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
         <h2 className="heading">{t("settings.title")}</h2>
         <IconButton label={t("common.cancel")} onClick={onClose}>
@@ -34,6 +48,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             { value: "general", label: t("settings.tabGeneral"), icon: <Settings2 /> },
             { value: "workspace", label: t("settings.tabWorkspace"), icon: <Users /> },
             { value: "tokens", label: t("settings.tabTokens"), icon: <KeyRound /> },
+            ...(me.isAdmin ? [{ value: "backups" as const, label: t("backup.tab"), icon: <DatabaseBackup /> }] : []),
           ]}
         />
       </div>
@@ -41,6 +56,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         {tab === "general" && <GeneralTab />}
         {tab === "workspace" && <WorkspaceTab onClose={onClose} />}
         {tab === "tokens" && <TokensTab />}
+        {tab === "backups" && <BackupsTab />}
       </div>
     </Dialog>
   );
@@ -164,6 +180,19 @@ function WorkspaceTab({ onClose }: { onClose: () => void }) {
           />
         </label>
       )}
+
+      <section className="flex items-center gap-3 rounded-lg border border-border p-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{t("export.workspace")}</div>
+          <div className="text-[13px] text-muted-foreground">{t("export.workspaceHint")}</div>
+        </div>
+        <a href={`/api/workspaces/${workspace.id}/export`} download>
+          <Button variant="outline" size="sm">
+            <Download />
+            {t("export.download")}
+          </Button>
+        </a>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">{t("members.title")}</h3>

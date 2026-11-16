@@ -7,7 +7,7 @@ import { AppShell } from "./components/AppShell";
 import { Spinner } from "./components/ui";
 import { api, ApiError, type Me } from "./lib/api";
 import { I18nProvider } from "./lib/i18n";
-import { WorkspaceProvider } from "./lib/workspace";
+import { checkEpoch, WorkspaceProvider } from "./lib/workspace";
 import { Home } from "./routes/Home";
 import { Invite } from "./routes/Invite";
 import { Login } from "./routes/Login";
@@ -57,6 +57,8 @@ const router = createBrowserRouter([
     ],
   },
 ]);
+
+await checkEpoch();
 
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>

@@ -4,6 +4,7 @@ import {
   boolean,
   customType,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -278,3 +279,56 @@ export const dbViews = pgTable(
   },
   (t) => [index("db_views_database_idx").on(t.databaseId)],
 );
+
+/* ---------- Version history ---------- */
+
+export type VersionKind = "auto" | "before-restore" | "before-agent" | "manual";
+
+export const pageVersions = pgTable(
+  "page_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    /** Full Yjs state at that moment. */
+    state: bytea("state").notNull(),
+    /** Yjs state vector, to tell whether the document changed since. */
+    stateVector: bytea("state_vector").notNull(),
+    title: text("title").notNull().default(""),
+    /** Database row values at that moment (relations excluded). */
+    props: jsonb("props").$type<Record<string, unknown>>(),
+    kind: text("kind").$type<VersionKind>().notNull().default("auto"),
+    /** People who edited since the previous version. */
+    authors: jsonb("authors").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("page_versions_page_idx").on(t.pageId, t.createdAt)],
+);
+
+/* ---------- Instance administration ---------- */
+
+export const instanceAdmins = pgTable("instance_admins", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
+/** Instance-wide settings (backup schedule, data epoch…). */
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const backupRuns = pgTable("backup_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: text("kind").$type<"scheduled" | "manual" | "before-restore">().notNull(),
+  status: text("status").$type<"running" | "success" | "error">().notNull(),
+  fileName: text("file_name"),
+  size: integer("size"),
+  targets: jsonb("targets").$type<string[]>().notNull().default([]),
+  error: text("error"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});

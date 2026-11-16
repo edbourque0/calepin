@@ -62,6 +62,9 @@ export function useWorkspaceEvents() {
       qc.invalidateQueries({ queryKey: pagesKey(workspace.id) });
       qc.invalidateQueries({ queryKey: ["page"] });
     });
+    source.addEventListener("reset", () => {
+      void resetLocalData().then(() => window.location.reload());
+    });
     source.addEventListener("database", (e) => {
       try {
         const { id } = JSON.parse((e as MessageEvent).data) as { id: string };
@@ -187,4 +190,40 @@ export function usePageActions() {
   });
 
   return { create, remove, move, setIcon, patchLocal, invalidate };
+}
+
+/** Drops the offline copies of pages (after the server data was restored from a backup). */
+export async function resetLocalData() {
+  try {
+    const dbs = (await indexedDB.databases?.()) ?? [];
+    await Promise.all(
+      dbs
+        .filter((d) => d.name?.startsWith("calepin:"))
+        .map(
+          (d) =>
+            new Promise<void>((resolve) => {
+              const req = indexedDB.deleteDatabase(d.name!);
+              req.onsuccess = req.onerror = req.onblocked = () => resolve();
+            }),
+        ),
+    );
+  } catch {
+    /* IndexedDB unavailable */
+  }
+}
+
+const epochStore = storage<string | null>("epoch", null);
+
+/** If the server data was replaced since this browser last synced, drop the offline cache first. */
+export async function checkEpoch() {
+  try {
+    const res = await fetch("/api/config", { credentials: "include", signal: AbortSignal.timeout(2500) });
+    const { epoch } = (await res.json()) as { epoch?: string };
+    if (!epoch) return;
+    const known = epochStore.get();
+    if (known && known !== epoch) await resetLocalData();
+    epochStore.set(epoch);
+  } catch {
+    /* offline: keep the cache */
+  }
 }

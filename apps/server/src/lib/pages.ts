@@ -3,10 +3,11 @@ import * as Y from "yjs";
 import { hocuspocus } from "../collab.js";
 import { db } from "../db/index.js";
 import { pages } from "../db/schema.js";
-import { docToMarkdown, writeMarkdown } from "./blocks.js";
+import { copyBlocks, docToMarkdown, writeMarkdown } from "./blocks.js";
 import { emitWorkspace } from "./events.js";
 import { positionAt, subtreeIds } from "./tree.js";
-import { TITLE_TEXT } from "./ydoc.js";
+import { snapshot, noteAuthor, versionDoc } from "./versions.js";
+import { getTitle, TITLE_TEXT } from "./ydoc.js";
 
 export const pageSummary = {
   id: pages.id,
@@ -81,11 +82,19 @@ export async function movePage(
  * Runs a change on a page's live Yjs document through Hocuspocus, so people who have the
  * page open see it immediately and it is persisted like any other edit.
  */
-export async function editDocument(pageId: string, userId: string, change: (doc: Y.Doc) => void | Promise<void>) {
+export async function editDocument(
+  pageId: string,
+  userId: string,
+  change: (doc: Y.Doc) => void | Promise<void>,
+  opts: { agent?: boolean } = {},
+) {
   const connection = await hocuspocus.openDirectConnection(pageId, { userId, role: "editor" });
   try {
     const doc = connection.document;
     if (!doc) throw new Error("Document unavailable");
+    // Agents can rewrite a lot at once: keep what was there before they touch it.
+    if (opts.agent) await snapshot(pageId, doc, { force: true, kind: "before-agent" });
+    noteAuthor(pageId, userId);
     await change(doc);
     // transact() triggers the store hook and broadcasts the update.
     await connection.transact(() => {});
@@ -115,6 +124,26 @@ export async function getPageMarkdown(pageId: string) {
   return readDocument(pageId, (doc) => docToMarkdown(doc));
 }
 
-export async function writePageMarkdown(pageId: string, userId: string, markdown: string, mode: "append" | "replace") {
-  await editDocument(pageId, userId, (doc) => writeMarkdown(doc, markdown, mode));
+export async function writePageMarkdown(
+  pageId: string,
+  userId: string,
+  markdown: string,
+  mode: "append" | "replace",
+  opts: { agent?: boolean } = {},
+) {
+  await editDocument(pageId, userId, (doc) => writeMarkdown(doc, markdown, mode), opts);
+}
+
+/** Brings back an earlier version as a new change on top of the current document. */
+export async function restoreVersion(pageId: string, versionId: string, userId: string) {
+  const found = await versionDoc(pageId, versionId);
+  if (!found) return null;
+  await editDocument(pageId, userId, async (doc) => {
+    await snapshot(pageId, doc, { force: true, kind: "before-restore" });
+    copyBlocks(found.doc, doc);
+    setTitle(doc, getTitle(found.doc));
+  });
+  if (found.version.props)
+    await db.update(pages).set({ props: found.version.props, updatedAt: new Date() }).where(eq(pages.id, pageId));
+  return found.version;
 }

@@ -44,3 +44,8 @@ export async function writeMarkdown(doc: Y.Doc, markdown: string, mode: "append"
   // and collaborators' cursors stay put.
   editor().blocksToYXmlFragment([...kept, ...incoming], doc.getXmlFragment(BLOCKS_FRAGMENT));
 }
+
+/** Replaces the document's blocks with those of another document (diffed, so it merges cleanly). */
+export function copyBlocks(from: Y.Doc, to: Y.Doc) {
+  editor().blocksToYXmlFragment(docToBlocks(from), to.getXmlFragment(BLOCKS_FRAGMENT));
+}

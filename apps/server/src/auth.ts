@@ -60,6 +60,9 @@ export const auth = betterAuth({
         },
         after: async (user) => {
           await createPersonalWorkspace(user.id, user.name);
+          // The first account of an instance administers it (backups…).
+          const admins = await db.select().from(schema.instanceAdmins).limit(1);
+          if (!admins.length) await db.insert(schema.instanceAdmins).values({ userId: user.id }).onConflictDoNothing();
         },
       },
     },

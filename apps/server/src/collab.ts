@@ -10,9 +10,16 @@ import { pages, type WorkspaceRole } from "./db/schema.js";
 import { env } from "./env.js";
 import { canEdit, getPageAccess } from "./lib/workspaces.js";
 import { emitDatabase, emitWorkspace } from "./lib/events.js";
+import { noteAuthor, snapshot } from "./lib/versions.js";
 import { extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
 
 type Context = { userId: string; role: WorkspaceRole };
+
+/** Set while a full restore replaces the database: live documents must not write back. */
+let restoring = false;
+export function setRestoring(value: boolean) {
+  restoring = value;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,6 +28,10 @@ export const hocuspocus = new Hocuspocus<Context>({
   debounce: 2000,
   maxDebounce: 10000,
   quiet: true,
+
+  async onConnect() {
+    if (restoring) throw new Error("Restoring a backup, try again in a moment");
+  },
 
   async onAuthenticate({ documentName, requestHeaders, connectionConfig }) {
     if (!UUID_RE.test(documentName)) throw new Error("Invalid document");
@@ -47,7 +58,13 @@ export const hocuspocus = new Hocuspocus<Context>({
     return document;
   },
 
+  /** When the last person leaves a page, keep a version of what they did. */
+  async onDisconnect({ documentName, document, clientsCount }) {
+    if (clientsCount === 0 && !restoring) await snapshot(documentName, document, { force: true }).catch(() => {});
+  },
+
   async onStoreDocument({ documentName, document, lastContext }) {
+    if (restoring) return;
     const state = Y.encodeStateAsUpdate(document);
     const title = getTitle(document);
     const [before] = await db
@@ -65,6 +82,8 @@ export const hocuspocus = new Hocuspocus<Context>({
         updatedBy: lastContext?.userId && lastContext.userId !== "system" ? lastContext.userId : undefined,
       })
       .where(eq(pages.id, documentName));
+    noteAuthor(documentName, lastContext?.userId);
+    await snapshot(documentName, document).catch((e) => console.error("[versions]", e));
     if (before.title !== title) {
       if (before.type === "row" && before.parentId) emitDatabase(before.workspaceId, before.parentId);
       else emitWorkspace(before.workspaceId);

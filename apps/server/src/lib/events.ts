@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 const bus = new EventEmitter();
 bus.setMaxListeners(0);
 
-export type WorkspaceEvent = { type: "pages" } | { type: "database"; id: string };
+export type WorkspaceEvent = { type: "pages" } | { type: "database"; id: string } | { type: "reset" };
 
 export function emitWorkspace(workspaceId: string, event: WorkspaceEvent = { type: "pages" }) {
   bus.emit(`ws:${workspaceId}`, event);
@@ -18,5 +18,17 @@ export function onWorkspace(workspaceId: string, listener: (e: WorkspaceEvent) =
   bus.on(`ws:${workspaceId}`, listener);
   return () => {
     bus.off(`ws:${workspaceId}`, listener);
+  };
+}
+
+/** Tells every open client to drop its local cache and reload (after a full restore). */
+export function emitReset() {
+  bus.emit("global", { type: "reset" } satisfies WorkspaceEvent);
+}
+
+export function onGlobal(listener: (e: WorkspaceEvent) => void) {
+  bus.on("global", listener);
+  return () => {
+    bus.off("global", listener);
   };
 }

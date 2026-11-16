@@ -18,6 +18,12 @@ A self-hosted notebook: pages, live collaboration, offline-ready PWA — with da
   checkbox, person, URL, email, phone, created/edited time), two-way **relations** and **rollups**
   (count, sum, average, min/max, % checked, earliest/latest…). Table and board (Kanban) views with filters, sorts,
   grouping and hidden properties. Every row is a page with its own content.
+- **Version history**: a version is kept every 10 minutes of editing, when the last person leaves a page and
+  before an AI agent rewrites it. Browse versions, compare them with the page now, restore one (as a new change,
+  so nothing is lost and collaborators keep working)
+- **Built-in backups**: a daily, optionally encrypted backup of the whole instance, kept on the server and copied to
+  any S3-compatible storage; restore from the app or the command line
+- **Export**: any page as Markdown, any database as CSV, a whole workspace as a ZIP
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
 - **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes
 - **Installable PWA**, light/dark/system themes (`Ctrl/⌘ ⇧ L`), French and English
@@ -48,8 +54,39 @@ Calepin works behind a reverse proxy or Cloudflare Tunnel; it needs WebSockets o
 | `OIDC_DISCOVERY_URL` | — | e.g. `https://id.example.com/.well-known/openid-configuration` |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | OIDC client credentials |
 | `OIDC_PROVIDER_NAME` | `SSO` | Label on the sign-in button |
+| `TZ` | `America/Toronto` | Time zone of the daily backup |
+| `BACKUP_PASSPHRASE` | — | Encrypts backups (recommended) |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PREFIX` | — | Off-site copy of backups |
+| `VERSION_RETENTION_DAYS` | `90` | How long page versions are kept |
 
 For OIDC, register the redirect URI `PUBLIC_URL/api/auth/callback/oidc` with your identity provider.
+
+## Backups
+
+Every day at the chosen hour (Settings → Backups, administrators only — the first account is the administrator),
+Calepin writes a full backup: accounts, workspaces, pages and their content, databases, version history.
+
+- **Where**: `/app/data/backups` in the container (the `calepin-data` volume), plus an S3-compatible bucket when
+  `S3_*` is set (Wasabi, MinIO, Cloudflare R2, Backblaze B2, AWS…). The newest 14 are kept (configurable).
+- **Encryption**: set `BACKUP_PASSPHRASE` to encrypt backups with AES-256-GCM. Keep the passphrase somewhere else:
+  without it a backup can't be restored.
+- **Format**: a gzipped JSON file produced by Postgres itself, independent of the Postgres version. Backups from an
+  older Calepin restore into a newer one.
+- **Restore** from Settings → Backups (a file listed there or one you upload). Calepin first makes a safety backup
+  of the current state, then replaces everything in one transaction; open browsers drop their offline copy and reload.
+
+From the command line:
+
+```bash
+docker compose exec calepin node dist/index.js backup
+# restore: stop the app first so no open page writes old content back
+docker compose stop calepin
+docker compose run --rm calepin node dist/index.js restore /app/data/backups/calepin-2026-11-16T08-00-00Z.json.gz.enc
+docker compose start calepin
+```
+
+Version history is thinned every night: every version from the last day, one per hour for a week, one per day up to
+`VERSION_RETENTION_DAYS` (90).
 
 ## MCP server
 
@@ -106,6 +143,6 @@ After changing `apps/server/src/db/schema.ts`, run `pnpm db:generate` to create 
 1. ~~Foundation — auth, page tree, collaborative editor, search, Docker image~~
 2. ~~Collaboration — sharing and permissions, multiple users, public pages, MCP server~~
 3. ~~Databases — properties, table/board views, relations, rollups~~
-4. Safety — version history, built-in backup/restore, export
+4. ~~Safety — version history, built-in backup/restore, export~~
 5. Import & mobile polish — Notion import, Markdown export
 6. Extras — formulas, calendar/gallery/timeline views, inline databases, API/webhooks, AI

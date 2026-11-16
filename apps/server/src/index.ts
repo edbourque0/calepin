@@ -12,15 +12,50 @@ import { client, runMigrations } from "./db/index.js";
 import { env, oidcEnabled } from "./env.js";
 import { type AppEnv, requireUser } from "./http.js";
 import { mcpRoutes } from "./mcp.js";
+import { getEpoch } from "./lib/backup.js";
+import { startScheduler } from "./lib/scheduler.js";
+import { adminRoutes } from "./routes/admin.js";
 import { databaseRoutes } from "./routes/databases.js";
+import { exportRoutes } from "./routes/export.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { pageRoutes } from "./routes/pages.js";
 import { publicRoutes } from "./routes/public.js";
 import { sharingRoutes } from "./routes/sharing.js";
 import { tokenRoutes } from "./routes/tokens.js";
+import { versionRoutes } from "./routes/versions.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 
 await runMigrations();
+
+/* ----- Command line: `node dist/index.js backup` / `node dist/index.js restore <file>` ----- */
+const [command, arg] = process.argv.slice(2);
+if (command === "backup" || command === "restore") {
+  const { runBackup, restoreDatabase } = await import("./lib/backup.js");
+  let code = 0;
+  try {
+    if (command === "backup") {
+      const run = await runBackup("manual");
+      console.log(
+        run.status === "success"
+          ? `Backup written: ${run.fileName} (${run.targets.join(", ")})`
+          : `Backup failed: ${run.error}`,
+      );
+      code = run.status === "success" ? 0 : 1;
+    } else {
+      if (!arg) throw new Error("Usage: restore <backup file>");
+      const { readFile } = await import("node:fs/promises");
+      const before = await runBackup("before-restore");
+      console.log(`Safety backup: ${before.fileName ?? before.error}`);
+      const result = await restoreDatabase(await readFile(arg));
+      console.log(`Restored backup from ${result.createdAt}`);
+    }
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    code = 1;
+  }
+  await client.end({ timeout: 5 });
+  process.exit(code);
+}
 
 const app = new Hono<AppEnv>();
 
@@ -34,8 +69,12 @@ app.onError((err, c) => {
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
-app.get("/api/config", (c) =>
-  c.json({ allowSignup: env.ALLOW_SIGNUP, oidc: oidcEnabled ? { name: env.OIDC_PROVIDER_NAME } : null }),
+app.get("/api/config", async (c) =>
+  c.json({
+    allowSignup: env.ALLOW_SIGNUP,
+    oidc: oidcEnabled ? { name: env.OIDC_PROVIDER_NAME } : null,
+    epoch: await getEpoch(),
+  }),
 );
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -48,6 +87,9 @@ const api = new Hono<AppEnv>()
   .route("/", pageRoutes)
   .route("/", sharingRoutes)
   .route("/", databaseRoutes)
+  .route("/", versionRoutes)
+  .route("/", exportRoutes)
+  .route("/", adminRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
@@ -79,6 +121,8 @@ if (webDist && existsSync(path.join(webDist, "index.html"))) {
 } else {
   app.get("/", (c) => c.text("Calepin API is running. Start the web app with `pnpm dev`."));
 }
+
+startScheduler();
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`Calepin listening on http://localhost:${info.port}`);

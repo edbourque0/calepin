@@ -35,9 +35,11 @@ export type Role = "owner" | "editor" | "viewer";
 export type Me = {
   user: { id: string; name: string; email: string; image: string | null };
   workspaces: { id: string; name: string; icon: string | null; role: Role }[];
+  /** Instance administrator (backups). */
+  isAdmin?: boolean;
 };
 
-export type AppConfig = { allowSignup: boolean; oidc: { name: string } | null };
+export type AppConfig = { allowSignup: boolean; oidc: { name: string } | null; epoch: string };
 
 export type PageSummary = {
   id: string;

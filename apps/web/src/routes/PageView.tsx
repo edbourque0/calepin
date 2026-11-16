@@ -1,5 +1,18 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Cloud, CloudOff, FileText, Globe, Lock, RefreshCw, Share2, SmilePlus } from "lucide-react";
+import {
+  ChevronRight,
+  Cloud,
+  CloudOff,
+  Download,
+  Ellipsis,
+  FileText,
+  Globe,
+  History,
+  Lock,
+  RefreshCw,
+  Share2,
+  SmilePlus,
+} from "lucide-react";
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import type * as Y from "yjs";
@@ -11,7 +24,8 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { DatabaseView } from "@/components/database/DatabaseView";
 import { RowProperties } from "@/components/database/RowProperties";
 import { SharePanel } from "@/components/SharePanel";
-import { Button, Popover, Spinner } from "@/components/ui";
+import { HistoryPanel } from "@/components/HistoryPanel";
+import { Button, IconButton, MenuItem, Popover, Spinner } from "@/components/ui";
 import { type Collab, type SyncStatus, TITLE_TEXT, usePresence, useCollab } from "@/lib/collab";
 import { useI18n } from "@/lib/i18n";
 import { cn, initials, storage } from "@/lib/utils";
@@ -187,6 +201,7 @@ function PageTopBar({
             </div>
           )}
           <StatusBadge status={status} readOnly={readOnly} />
+          <PageMenu resolved={resolved} readOnly={readOnly} />
           {resolved.canShare && (
             <>
               <Button ref={shareBtn} variant="ghost" size="sm" onClick={() => setSharing((s) => !s)}>
@@ -217,6 +232,38 @@ function PageTopBar({
         </Fragment>
       ))}
     </TopBar>
+  );
+}
+
+function PageMenu({ resolved, readOnly }: { resolved: Resolved; readOnly: boolean }) {
+  const { t } = useI18n();
+  const ref = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState(false);
+  const isDb = resolved.page.type === "database";
+  return (
+    <>
+      <IconButton ref={ref} label={t("page.more")} onClick={() => setOpen((o) => !o)}>
+        <Ellipsis className="size-4" />
+      </IconButton>
+      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} align="end" className="w-60">
+        {!isDb && (
+          <MenuItem
+            icon={<History className="size-4" />}
+            onClick={() => {
+              setOpen(false);
+              setHistory(true);
+            }}
+          >
+            {t("page.history")}
+          </MenuItem>
+        )}
+        <a href={`/api/pages/${resolved.page.id}/export`} download onClick={() => setOpen(false)}>
+          <MenuItem icon={<Download className="size-4" />}>{isDb ? t("page.exportCsv") : t("page.exportMd")}</MenuItem>
+        </a>
+      </Popover>
+      {history && <HistoryPanel pageId={resolved.page.id} canEdit={!readOnly} onClose={() => setHistory(false)} />}
+    </>
   );
 }
 

@@ -693,3 +693,39 @@ export async function peopleNames(ids: string[]) {
 }
 
 export type { ViewType };
+
+/* ---------- Plain-text values (exports, agents) ---------- */
+
+export function personIds(properties: Property[], rows: { props: Record<string, unknown> }[]) {
+  const ids = new Set<string>();
+  for (const p of properties)
+    if (p.type === "person")
+      for (const r of rows) for (const id of (r.props[p.id] as string[] | null) ?? []) ids.add(id);
+  return [...ids];
+}
+
+export function formatValue(prop: Property, value: unknown, people: Map<string, string>): string {
+  if (value === null || value === undefined) return "";
+  const opts = options(prop);
+  switch (prop.type) {
+    case "select":
+    case "status":
+      return opts.find((o) => o.id === value)?.name ?? "";
+    case "multi_select":
+      return (value as string[]).map((id) => opts.find((o) => o.id === id)?.name ?? id).join(", ");
+    case "checkbox":
+      return value ? "✓" : "";
+    case "person":
+      return (value as string[]).map((id) => people.get(id) ?? id).join(", ");
+    case "relation":
+      return (value as LinkedRow[]).map((r) => `${r.title || "Untitled"} (${r.id})`).join(", ");
+    case "rollup":
+      return Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "number"
+          ? String(Math.round(value * 100) / 100)
+          : String(value);
+    default:
+      return String(value);
+  }
+}
