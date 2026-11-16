@@ -250,10 +250,16 @@ body {
   }
 }
 
-/* ---------- BlockNote, themed by the tokens ---------- */
-.bn-container.calepin-editor {
+/* ---------- BlockNote, themed by the tokens ----------
+   The [data-color-scheme] selector outranks BlockNote's own light/dark variables, so the editor
+   uses the app's background, ink and font in both themes instead of drawing its own panel. */
+.bn-container.calepin-editor,
+.bn-container.calepin-editor[data-color-scheme] {
   --bn-font-family: var(--font-sans);
   --bn-border-radius: 10px;
+  --bn-border-radius-small: 6px;
+  --bn-border-radius-medium: 8px;
+  --bn-border-radius-large: 10px;
   --bn-colors-editor-background: var(--background);
   --bn-colors-editor-text: var(--foreground);
   --bn-colors-menu-background: var(--popover);
@@ -270,6 +276,77 @@ body {
   --bn-colors-border: var(--border);
   --bn-colors-side-menu: var(--muted-foreground);
   --bn-colors-highlights-yellow-background: var(--highlight);
+  background: transparent;
+}
+
+/* No panel behind the text: the page is the editor. */
+.bn-container.calepin-editor .bn-editor {
+  background: transparent;
+  border-radius: 0;
+}
+.bn-container.calepin-editor .bn-editor ::selection {
+  background: color-mix(in oklab, var(--ribbon) 22%, transparent);
+}
+.bn-container.calepin-editor .bn-editor hr {
+  border-color: var(--border);
+}
+/* Headings get air above them, like the published page. */
+.bn-container.calepin-editor .bn-editor .bn-block-outer:not(:first-child) > .bn-block > [data-content-type="heading"] {
+  margin-top: 14px;
+}
+.bn-container.calepin-editor .bn-editor [data-content-type="heading"] {
+  font-weight: 600;
+}
+/* Tables: hairlines in the border colour, a quiet header row. */
+.bn-container.calepin-editor .bn-editor table {
+  border-collapse: collapse;
+}
+.bn-container.calepin-editor .bn-editor table td,
+.bn-container.calepin-editor .bn-editor table th {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  font-size: 15px;
+}
+.bn-container.calepin-editor .bn-editor table th,
+.bn-container.calepin-editor .bn-editor table tr:first-child td {
+  background: var(--muted);
+  font-weight: 500;
+}
+/* Code blocks: the muted surface used elsewhere, not a black slab. */
+.bn-container.calepin-editor .bn-editor [data-content-type="codeBlock"] {
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.bn-container.calepin-editor .bn-editor [data-content-type="codeBlock"] > pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  padding: 12px 16px;
+}
+.bn-container.calepin-editor .bn-editor [data-content-type="codeBlock"] code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+.bn-container.calepin-editor .bn-editor [data-content-type="codeBlock"] select {
+  color: var(--muted-foreground);
+  background: transparent;
+}
+.bn-container.calepin-editor .bn-editor [data-content-type="quote"] blockquote {
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+}
+.bn-container.calepin-editor .bn-editor input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+.bn-container.calepin-editor .bn-editor [data-checked="true"] .bn-inline-content {
+  color: var(--muted-foreground);
+}
+.bn-container.calepin-editor .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before,
+.bn-container.calepin-editor .bn-editor [data-placeholder]::before {
+  color: var(--muted-foreground);
 }
 
 .bn-container.calepin-editor .bn-editor {

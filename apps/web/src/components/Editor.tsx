@@ -1,4 +1,3 @@
-import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { BlockNoteSchema, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { en, fr } from "@blocknote/core/locales";
