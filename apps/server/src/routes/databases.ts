@@ -5,6 +5,7 @@ import { db } from "../db/index.js";
 import { dbProperties, dbViews, pages, type PropertyType, user, workspaceMembers } from "../db/schema.js";
 import type { AppEnv } from "../http.js";
 import {
+  checkExpression,
   convertProperty,
   createDatabase,
   createProperty,
@@ -22,6 +23,7 @@ import { editDocument, setTitle, trashPage } from "../lib/pages.js";
 import { positionAt } from "../lib/tree.js";
 import { canEdit, getMembership, getPageAccess } from "../lib/workspaces.js";
 
+const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline"] as const;
 const propertyType = z.enum(PROPERTY_TYPES as [PropertyType, ...PropertyType[]]);
 const option = z.object({
   id: z.string().min(1).max(40),
@@ -242,6 +244,34 @@ export const databaseRoutes = new Hono<AppEnv>()
     return c.json(prop, 201);
   })
 
+  /** Evaluates an expression on the first rows without saving it (formula editor preview). */
+  .post("/databases/:id/formula-preview", async (c) => {
+    const { database } = await access(c.var.user.id, c.req.param("id"));
+    const body = z
+      .object({ expression: z.string().max(5000), propertyId: z.string().optional() })
+      .parse(await c.req.json());
+    try {
+      checkExpression(body.expression);
+    } catch (e) {
+      return c.json({ error: (e as Error).message, results: [] });
+    }
+    const temp = {
+      id: "__preview__",
+      databaseId: database.page.id,
+      name: "__preview__",
+      type: "formula" as const,
+      config: { expression: body.expression },
+      position: "zzzz",
+      createdAt: new Date(),
+    };
+    const properties = database.properties.filter((p) => p.id !== body.propertyId).concat(temp);
+    const rows = (await getRows(database.page.id, properties)).slice(0, 3);
+    return c.json({
+      error: null,
+      results: rows.map((r) => ({ id: r.id, title: r.title, value: r.props.__preview__ })),
+    });
+  })
+
   .patch("/databases/:id/properties/:propId", async (c) => {
     const { acc, database } = await access(c.var.user.id, c.req.param("id"), true);
     let prop = database.properties.find((p) => p.id === c.req.param("propId"));
@@ -267,6 +297,7 @@ export const databaseRoutes = new Hono<AppEnv>()
         config.databaseId = prop.config.databaseId;
         config.pairedPropertyId = prop.config.pairedPropertyId;
       }
+      if (prop.type === "formula") checkExpression(config.expression);
       patch.config = config;
       if (body.options) {
         // Clear values that point to removed options.
@@ -322,7 +353,7 @@ export const databaseRoutes = new Hono<AppEnv>()
     const body = z
       .object({
         name: z.string().trim().min(1).max(100),
-        type: z.enum(["table", "board", "list", "gallery"]),
+        type: z.enum(VIEW_TYPES),
         config: viewConfig.optional(),
       })
       .parse(await c.req.json());
@@ -347,7 +378,7 @@ export const databaseRoutes = new Hono<AppEnv>()
     const body = z
       .object({
         name: z.string().trim().min(1).max(100).optional(),
-        type: z.enum(["table", "board", "list", "gallery"]).optional(),
+        type: z.enum(VIEW_TYPES).optional(),
         config: viewConfig.optional(),
       })
       .parse(await c.req.json());

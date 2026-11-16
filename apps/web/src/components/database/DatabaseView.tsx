@@ -1,11 +1,15 @@
 import {
   ArrowUpDown,
+  CalendarDays,
+  ChartGantt,
   ChevronDown,
   Columns3,
   Eye,
   Filter as FilterIcon,
   Kanban,
+  LayoutGrid,
   Plus,
+  Settings2,
   Table2,
   Trash2,
 } from "lucide-react";
@@ -16,11 +20,27 @@ import { applyView, useDatabase, useDatabaseActions, valuesFromFilters } from "@
 import { useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
 import { BoardView } from "./BoardView";
+import { CalendarView } from "./CalendarView";
+import { GalleryView } from "./GalleryView";
 import { TableView } from "./TableView";
+import { TimelineView } from "./TimelineView";
 import { FilterMenu, GroupMenu, PropertiesMenu, SortMenu } from "./ViewMenus";
+import { LayoutMenu } from "./ViewSettings";
 
-const viewIcon = (type: ViewType) =>
-  type === "board" ? <Kanban className="size-3.5" /> : <Table2 className="size-3.5" />;
+const VIEW_TYPES: ViewType[] = ["table", "board", "gallery", "calendar", "timeline"];
+const ICONS: Record<ViewType, typeof Table2> = {
+  table: Table2,
+  list: Table2,
+  board: Kanban,
+  gallery: LayoutGrid,
+  calendar: CalendarDays,
+  timeline: ChartGantt,
+};
+const viewIcon = (type: ViewType, className = "size-3.5") => {
+  const Icon = ICONS[type] ?? Table2;
+  return <Icon className={className} />;
+};
+const viewLabel = (type: ViewType) => `db.view.${type === "list" ? "table" : type}`;
 
 function ToolbarButton({
   icon,
@@ -90,13 +110,18 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
   const filters = view.config.filters ?? [];
   const sorts = view.config.sorts ?? [];
 
+  const configFor = (type: ViewType): ViewConfig => {
+    if (type === "board")
+      return {
+        groupBy:
+          view.config.groupBy ?? data.properties.find((p) => p.type === "status" || p.type === "select")?.id ?? null,
+      };
+    if (type === "calendar" || type === "timeline")
+      return { dateProperty: data.properties.find((p) => p.type === "date")?.id ?? view.config.dateProperty ?? null };
+    return {};
+  };
   const addView = async (type: ViewType) => {
-    const groupBy = data.properties.find((p) => p.type === "status" || p.type === "select")?.id ?? null;
-    const v = await actions.addView.mutateAsync({
-      name: type === "board" ? t("db.viewBoard") : t("db.viewTable"),
-      type,
-      config: type === "board" ? { groupBy } : {},
-    });
+    const v = await actions.addView.mutateAsync({ name: t(viewLabel(type)), type, config: configFor(type) });
     setViewId(v.id);
     setAddingView(false);
   };
@@ -157,6 +182,11 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
             <ToolbarButton icon={<ArrowUpDown />} label={t("db.sort")} active={sorts.length > 0} count={sorts.length}>
               {() => <SortMenu data={data} view={view} onChange={change} />}
             </ToolbarButton>
+            {(view.type === "calendar" || view.type === "timeline" || view.type === "gallery") && (
+              <ToolbarButton icon={<Settings2 />} label={t("db.layout")}>
+                {() => <LayoutMenu data={data} view={view} onChange={change} />}
+              </ToolbarButton>
+            )}
             {view.type === "board" && (
               <ToolbarButton icon={<Columns3 />} label={t("db.group")}>
                 {(close) => (
@@ -191,20 +221,16 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
       </div>
 
       <Popover anchor={addViewRef} open={addingView} onClose={() => setAddingView(false)} className="w-48">
-        <button
-          onClick={() => addView("table")}
-          className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-sm hover:bg-accent"
-        >
-          <Table2 className="size-4 text-muted-foreground" />
-          {t("db.viewTable")}
-        </button>
-        <button
-          onClick={() => addView("board")}
-          className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-sm hover:bg-accent"
-        >
-          <Kanban className="size-4 text-muted-foreground" />
-          {t("db.viewBoard")}
-        </button>
+        {VIEW_TYPES.map((type) => (
+          <button
+            key={type}
+            onClick={() => addView(type)}
+            className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-sm hover:bg-accent [&_svg]:text-muted-foreground"
+          >
+            {viewIcon(type, "size-4")}
+            {t(viewLabel(type))}
+          </button>
+        ))}
       </Popover>
 
       {viewMenu && (
@@ -214,11 +240,7 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
             canDelete={data.views.length > 1}
             onRename={(name) => actions.updateView.mutate({ viewId: viewMenu.id, name })}
             onType={(type) => {
-              const groupBy =
-                view.config.groupBy ??
-                data.properties.find((p) => p.type === "status" || p.type === "select")?.id ??
-                null;
-              actions.updateView.mutate({ viewId: viewMenu.id, type, config: type === "board" ? { groupBy } : {} });
+              actions.updateView.mutate({ viewId: viewMenu.id, type, config: configFor(type) });
               setViewMenu(null);
             }}
             onDelete={() => {
@@ -229,22 +251,16 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
         </Popover>
       )}
 
-      {data.rows.length === 0 ? (
-        view.type === "table" ? (
-          <TableView
-            data={data}
-            view={view}
-            rows={rows}
-            canEdit={canEdit}
-            onHideProperty={(id) => change({ hidden: [...(view.config.hidden ?? []), id] })}
-          />
-        ) : (
-          <p className="py-8 text-center text-sm text-muted-foreground">{t("db.noRows")}</p>
-        )
-      ) : rows.length === 0 && filters.length ? (
+      {data.rows.length > 0 && rows.length === 0 && filters.length ? (
         <p className="py-8 text-center text-sm text-muted-foreground">{t("db.noMatch")}</p>
       ) : view.type === "board" ? (
         <BoardView data={data} view={view} rows={rows} canEdit={canEdit} />
+      ) : view.type === "gallery" ? (
+        <GalleryView data={data} view={view} rows={rows} canEdit={canEdit} />
+      ) : view.type === "calendar" ? (
+        <CalendarView data={data} view={view} rows={rows} canEdit={canEdit} />
+      ) : view.type === "timeline" ? (
+        <TimelineView data={data} view={view} rows={rows} canEdit={canEdit} />
       ) : (
         <TableView
           data={data}
@@ -286,7 +302,7 @@ function ViewMenu({
         onKeyDown={(e) => e.key === "Enter" && save()}
         className="m-1 h-8 rounded-md border border-input bg-background px-2.5 text-sm shadow-xs"
       />
-      {(["table", "board"] as ViewType[]).map((type) => (
+      {VIEW_TYPES.map((type) => (
         <button
           key={type}
           onClick={() => onType(type)}
@@ -296,7 +312,7 @@ function ViewMenu({
           )}
         >
           {viewIcon(type)}
-          {type === "board" ? t("db.viewBoard") : t("db.viewTable")}
+          {t(viewLabel(type))}
         </button>
       ))}
       {canDelete && (

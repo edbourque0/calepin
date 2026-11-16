@@ -11,7 +11,7 @@ import { env } from "./env.js";
 import { canEdit, getPageAccess } from "./lib/workspaces.js";
 import { emitDatabase, emitWorkspace } from "./lib/events.js";
 import { noteAuthor, snapshot } from "./lib/versions.js";
-import { extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
+import { extractCover, extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
 
 type Context = { userId: string; role: WorkspaceRole };
 
@@ -67,8 +67,15 @@ export const hocuspocus = new Hocuspocus<Context>({
     if (restoring) return;
     const state = Y.encodeStateAsUpdate(document);
     const title = getTitle(document);
+    const cover = extractCover(document);
     const [before] = await db
-      .select({ title: pages.title, workspaceId: pages.workspaceId, type: pages.type, parentId: pages.parentId })
+      .select({
+        title: pages.title,
+        cover: pages.cover,
+        workspaceId: pages.workspaceId,
+        type: pages.type,
+        parentId: pages.parentId,
+      })
       .from(pages)
       .where(eq(pages.id, documentName));
     if (!before) return;
@@ -78,16 +85,16 @@ export const hocuspocus = new Hocuspocus<Context>({
         yjsState: state,
         title,
         contentText: extractText(document),
+        cover,
         updatedAt: new Date(),
         updatedBy: lastContext?.userId && lastContext.userId !== "system" ? lastContext.userId : undefined,
       })
       .where(eq(pages.id, documentName));
     noteAuthor(documentName, lastContext?.userId);
     await snapshot(documentName, document).catch((e) => console.error("[versions]", e));
-    if (before.title !== title) {
-      if (before.type === "row" && before.parentId) emitDatabase(before.workspaceId, before.parentId);
-      else emitWorkspace(before.workspaceId);
-    }
+    if (before.type === "row" && before.parentId) {
+      if (before.title !== title || before.cover !== cover) emitDatabase(before.workspaceId, before.parentId);
+    } else if (before.title !== title) emitWorkspace(before.workspaceId);
   },
 });
 

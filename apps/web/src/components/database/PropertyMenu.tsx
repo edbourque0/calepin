@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { usePages } from "@/lib/workspace";
 import { PropertyIcon, TAG_COLORS } from "./cells";
+import { FormulaEditor } from "./FormulaEditor";
 
 const ROLLUP_FNS: RollupFn[] = [
   "count",
@@ -148,7 +149,7 @@ function RollupFields({
           >
             <option value="title">{t("db.titleColumn")}</option>
             {target.data?.properties
-              .filter((p) => p.type !== "rollup" && p.type !== "relation")
+              .filter((p) => p.type !== "rollup" && p.type !== "relation" && p.type !== "formula")
               .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -189,7 +190,7 @@ export function PropertyMenu({
   const { t } = useI18n();
   const actions = useDatabaseActions(data.database.id);
   const [name, setName] = useState(prop.name);
-  const structural = prop.type === "relation" || prop.type === "rollup";
+  const structural = prop.type === "relation" || prop.type === "rollup" || prop.type === "formula";
   const related = data.related.find((r) => r.id === prop.config.databaseId);
 
   const saveName = () => {
@@ -197,7 +198,9 @@ export function PropertyMenu({
   };
 
   return (
-    <div className="flex w-72 flex-col gap-3 p-2">
+    <div
+      className={cn("flex flex-col gap-3 p-2", prop.type === "formula" ? "w-[26rem] max-w-[calc(100vw-2rem)]" : "w-72")}
+    >
       <input
         autoFocus
         value={name}
@@ -219,11 +222,13 @@ export function PropertyMenu({
           onChange={(e) => actions.updateProperty.mutate({ propId: prop.id, type: e.target.value as PropertyType })}
           className={selectCls}
         >
-          {TYPE_ORDER.filter((tp) => structural || (tp !== "relation" && tp !== "rollup")).map((tp) => (
-            <option key={tp} value={tp}>
-              {t(`type.${tp}`)}
-            </option>
-          ))}
+          {TYPE_ORDER.filter((tp) => structural || (tp !== "relation" && tp !== "rollup" && tp !== "formula")).map(
+            (tp) => (
+              <option key={tp} value={tp}>
+                {t(`type.${tp}`)}
+              </option>
+            ),
+          )}
         </select>
       </Field>
       {(prop.type === "select" || prop.type === "multi_select" || prop.type === "status") && (
@@ -255,6 +260,19 @@ export function PropertyMenu({
           data={data}
           config={prop.config}
           onChange={(c) => actions.updateProperty.mutate({ propId: prop.id, config: c })}
+        />
+      )}
+      {prop.type === "formula" && (
+        <FormulaEditor
+          data={data}
+          propertyId={prop.id}
+          initial={prop.config.expression ?? ""}
+          saving={actions.updateProperty.isPending}
+          submitLabel={t("db.saveFormula")}
+          onSave={(expression) => {
+            saveName();
+            actions.updateProperty.mutate({ propId: prop.id, config: { expression } }, { onSuccess: onClose });
+          }}
         />
       )}
       <div className="-mx-2 border-t border-border px-1 pt-1">
@@ -314,9 +332,9 @@ export function AddPropertyMenu({ data, onClose }: { data: DatabaseData; onClose
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready) create();
+        if (ready && type !== "formula") create();
       }}
-      className="flex w-80 flex-col gap-3 p-2"
+      className={cn("flex flex-col gap-3 p-2", type === "formula" ? "w-[26rem] max-w-[calc(100vw-2rem)]" : "w-80")}
     >
       <input
         autoFocus
@@ -368,9 +386,26 @@ export function AddPropertyMenu({ data, onClose }: { data: DatabaseData; onClose
         </>
       )}
       {type === "rollup" && <RollupFields data={data} config={rollup} onChange={setRollup} />}
-      <Button type="submit" size="sm" disabled={!ready || actions.addProperty.isPending}>
-        {t("db.addProperty")}
-      </Button>
+      {type === "formula" ? (
+        <FormulaEditor
+          data={data}
+          initial=""
+          saving={actions.addProperty.isPending}
+          submitLabel={t("db.addProperty")}
+          onSave={async (expression) => {
+            await actions.addProperty.mutateAsync({
+              name: name.trim() || t("type.formula"),
+              type: "formula",
+              config: { expression },
+            });
+            onClose();
+          }}
+        />
+      ) : (
+        <Button type="submit" size="sm" disabled={!ready || actions.addProperty.isPending}>
+          {t("db.addProperty")}
+        </Button>
+      )}
     </form>
   );
 }

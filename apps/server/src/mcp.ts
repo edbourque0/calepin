@@ -347,7 +347,8 @@ function buildServer(user: AppUser) {
       title: "Create a database",
       description:
         "Creates a database (a table of pages with typed properties). Types: text, number, select, multi_select, " +
-        "status, date, checkbox, url, email, phone, person, created_time, last_edited_time. Relations and rollups " +
+        "status, date, checkbox, url, email, phone, person, formula, created_time, last_edited_time. Formulas take an " +
+        'expression such as `prop("Price") * prop("Qty")` or `if(prop("Done"), "✓", "")`. Relations and rollups ' +
         "are added from the app.",
       inputSchema: {
         title: z.string().min(1).max(500),
@@ -362,6 +363,7 @@ function buildServer(user: AppUser) {
                 PROPERTY_TYPES.filter((t) => t !== "relation" && t !== "rollup") as [PropertyType, ...PropertyType[]],
               ),
               options: z.array(z.string()).optional().describe("Option names for select / multi_select"),
+              expression: z.string().max(5000).optional().describe("Formula expression (type formula)"),
             }),
           )
           .max(30)
@@ -387,15 +389,17 @@ function buildServer(user: AppUser) {
         properties: (properties ?? []).map((p) => ({
           name: p.name,
           type: p.type,
-          config: p.options?.length
-            ? {
-                options: p.options.map((name, i) => ({
-                  id: Math.random().toString(36).slice(2, 10),
-                  name,
-                  color: colors[i % colors.length],
-                })),
-              }
-            : undefined,
+          config: p.expression
+            ? { expression: p.expression }
+            : p.options?.length
+              ? {
+                  options: p.options.map((name, i) => ({
+                    id: Math.random().toString(36).slice(2, 10),
+                    name,
+                    color: colors[i % colors.length],
+                  })),
+                }
+              : undefined,
         })),
       });
       return ok({ id: page.id, title, url: pageUrl(page.id) });
@@ -493,7 +497,9 @@ async function describeDatabase(databaseId: string, limit: number) {
           ? ` — rows of database ${p.config.databaseId}`
           : p.type === "rollup"
             ? ` — ${p.config.fn} (read-only)`
-            : "";
+            : p.type === "formula"
+              ? ` — \`${p.config.expression}\` (read-only)`
+              : "";
     return `- **${p.name}** (\`${p.id}\`): ${p.type}${extra}`;
   });
   const esc = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");

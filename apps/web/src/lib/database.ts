@@ -182,12 +182,19 @@ export function textOf(p: Property | "title", row: Row): string {
       return (v as LinkedRow[]).map((r) => r.title).join(", ");
     case "rollup":
       return Array.isArray(v) ? v.join(", ") : String(v);
+    case "formula":
+      if (isFormulaError(v)) return "";
+      if (typeof v === "boolean") return v ? "1" : "";
+      return Array.isArray(v) ? v.join(", ") : String(v);
     case "checkbox":
       return v ? "1" : "";
     default:
       return String(v);
   }
 }
+
+export const isFormulaError = (v: unknown): v is { error: string } =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && "error" in v;
 
 const isEmptyValue = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 
@@ -236,7 +243,10 @@ function matches(filter: Filter, row: Row, properties: Property[]): boolean {
     case "is_not_checked":
       return raw !== true;
   }
-  if (type === "number" || (type === "rollup" && typeof raw === "number")) {
+  if (type === "formula" && typeof raw === "boolean") {
+    if (filter.op === "is") return String(raw) === String(fv);
+  }
+  if (type === "number" || ((type === "rollup" || type === "formula") && typeof raw === "number")) {
     const n = typeof raw === "number" ? raw : Number.NaN;
     const target = Number(fv);
     switch (filter.op) {
@@ -290,9 +300,14 @@ function compare(a: Row, b: Row, sort: Sort, properties: Property[]): number {
   if (!prop) return 0;
   let av: unknown;
   let bv: unknown;
-  if (prop !== "title" && (prop.type === "number" || prop.type === "rollup")) {
-    av = a.props[prop.id];
-    bv = b.props[prop.id];
+  if (
+    prop !== "title" &&
+    (prop.type === "number" ||
+      ((prop.type === "rollup" || prop.type === "formula") &&
+        (typeof a.props[prop.id] === "number" || typeof b.props[prop.id] === "number")))
+  ) {
+    av = typeof a.props[prop.id] === "number" ? a.props[prop.id] : null;
+    bv = typeof b.props[prop.id] === "number" ? b.props[prop.id] : null;
   } else if (prop !== "title" && (prop.type === "select" || prop.type === "status")) {
     // Order of options, like Notion.
     const ids = propertyOptions(prop).map((o) => o.id);
@@ -364,8 +379,56 @@ export const TYPE_ORDER: PropertyType[] = [
   "phone",
   "relation",
   "rollup",
+  "formula",
   "created_time",
   "last_edited_time",
 ];
 
-export const READ_ONLY_TYPES: PropertyType[] = ["rollup", "created_time", "last_edited_time"];
+export const READ_ONLY_TYPES: PropertyType[] = ["rollup", "formula", "created_time", "last_edited_time"];
+
+/* ---------- Dates for calendar and timeline ---------- */
+
+const pad = (n: number) => String(n).padStart(2, "0");
+export const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const dateOfKey = (k: string) => new Date(`${k}T00:00:00`);
+export const addDays = (k: string, n: number) => {
+  const d = dateOfKey(k);
+  d.setDate(d.getDate() + n);
+  return keyOf(d);
+};
+export const daysBetween = (a: string, b: string) =>
+  Math.round((dateOfKey(b).getTime() - dateOfKey(a).getTime()) / 86_400_000);
+
+/** Local day ("YYYY-MM-DD") of a date value: plain dates as is, timestamps in local time. */
+export function dayKey(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : keyOf(d);
+}
+
+/** Moves a date value by whole days, keeping its time of day if it has one. */
+export function shiftDate(value: unknown, days: number): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return addDays(value, days);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+export const DATE_TYPES: PropertyType[] = ["date", "created_time", "last_edited_time"];
+
+/** The date property placing rows in a calendar / timeline: the configured one, else the first date property. */
+export function datePropertyOf(view: View, properties: Property[]) {
+  const dates = properties.filter((p) => DATE_TYPES.includes(p.type));
+  return dates.find((p) => p.id === view.config.dateProperty) ?? dates.find((p) => p.type === "date") ?? dates[0];
+}
+
+/** Start and end day of a row for a calendar or timeline view. */
+export function rowSpan(row: Row, startId: string, endId?: string | null): { start: string; end: string } | null {
+  const start = dayKey(row.props[startId]);
+  if (!start) return null;
+  const endRaw = endId ? dayKey(row.props[endId]) : null;
+  return { start, end: endRaw && endRaw >= start ? endRaw : start };
+}

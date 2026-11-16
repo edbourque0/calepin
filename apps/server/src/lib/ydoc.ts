@@ -34,3 +34,20 @@ export function extractText(doc: Y.Doc, maxLength = 200_000): string {
   walk(doc.getXmlFragment(BLOCKS_FRAGMENT));
   return lines.join("\n").slice(0, maxLength);
 }
+
+/** URL of the first image block in the document, or null. */
+export function extractCover(doc: Y.Doc): string | null {
+  const walk = (node: Y.XmlElement | Y.XmlFragment): string | null => {
+    for (const child of node.toArray()) {
+      if (!(child instanceof Y.XmlElement)) continue;
+      if (child.nodeName === "image") {
+        const url = child.getAttribute("url");
+        if (typeof url === "string" && url) return url;
+      }
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(doc.getXmlFragment(BLOCKS_FRAGMENT));
+}

@@ -122,6 +122,8 @@ export const pages = pgTable(
     yjsState: bytea("yjs_state"),
     /** Plain-text projection of the document, used for search and previews. */
     contentText: text("content_text").notNull().default(""),
+    /** URL of the first image in the document, used as the gallery cover of database rows. */
+    cover: text("cover"),
     search: tsvector("search").generatedAlwaysAs(
       sql`setweight(to_tsvector('calepin'::regconfig, coalesce("title", '')), 'A') || setweight(to_tsvector('calepin'::regconfig, coalesce("content_text", '')), 'B')`,
     ),
@@ -223,6 +225,7 @@ export type PropertyType =
   | "person"
   | "relation"
   | "rollup"
+  | "formula"
   | "created_time"
   | "last_edited_time";
 
@@ -261,7 +264,7 @@ export const dbRelations = pgTable(
   (t) => [primaryKey({ columns: [t.propertyId, t.fromRow, t.toRow] }), index("db_relations_from_idx").on(t.fromRow)],
 );
 
-export type ViewType = "table" | "board" | "list" | "gallery";
+export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline";
 
 export const dbViews = pgTable(
   "db_views",

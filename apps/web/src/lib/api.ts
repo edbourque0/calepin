@@ -123,6 +123,7 @@ export type PropertyType =
   | "person"
   | "relation"
   | "rollup"
+  | "formula"
   | "created_time"
   | "last_edited_time";
 
@@ -142,6 +143,7 @@ export type Property = {
     relationPropertyId?: string;
     targetPropertyId?: string;
     fn?: RollupFn;
+    expression?: string;
     [k: string]: unknown;
   };
   position: string;
@@ -162,13 +164,19 @@ export type RollupFn =
 
 export type Filter = { propertyId: string; op: string; value?: unknown };
 export type Sort = { propertyId: string; dir: "asc" | "desc" };
-export type ViewType = "table" | "board" | "list" | "gallery";
+export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline";
 export type ViewConfig = {
   filters?: Filter[];
   filterMode?: "and" | "or";
   sorts?: Sort[];
   groupBy?: string | null;
   hidden?: string[];
+  /** Calendar / timeline: the date property placing rows, and an optional end date. */
+  dateProperty?: string | null;
+  endDateProperty?: string | null;
+  /** Gallery: "content" shows the first image of the row page, "none" hides covers. */
+  cover?: "content" | "none";
+  cardSize?: "small" | "medium" | "large";
 };
 export type View = {
   id: string;
@@ -186,6 +194,8 @@ export type Row = {
   databaseId: string;
   title: string;
   icon: string | null;
+  /** First image of the row page (gallery cover). */
+  cover?: string | null;
   position: string;
   createdAt: string;
   updatedAt: string;

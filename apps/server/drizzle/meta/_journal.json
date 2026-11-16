@@ -50,6 +50,13 @@
       "when": 1794855962611,
       "tag": "0006_strong_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794856881414,
+      "tag": "0007_shocking_wong",
+      "breakpoints": true
     }
   ]
 }

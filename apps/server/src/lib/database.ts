@@ -4,6 +4,7 @@ import { db } from "../db/index.js";
 import { dbProperties, dbRelations, dbViews, pages, type PropertyType, user, type ViewType } from "../db/schema.js";
 import { emitWorkspace } from "./events.js";
 import { positionAt } from "./tree.js";
+import { compile as compileFormula, type FValue, run as runFormula } from "./formula.js";
 
 /* ---------- Types ---------- */
 
@@ -39,11 +40,12 @@ export const PROPERTY_TYPES: PropertyType[] = [
   "person",
   "relation",
   "rollup",
+  "formula",
   "created_time",
   "last_edited_time",
 ];
 
-const READ_ONLY: PropertyType[] = ["rollup", "created_time", "last_edited_time"];
+const READ_ONLY: PropertyType[] = ["rollup", "formula", "created_time", "last_edited_time"];
 export const isReadOnly = (type: PropertyType) => READ_ONLY.includes(type);
 
 export class DatabaseError extends Error {}
@@ -87,6 +89,7 @@ export type RowRecord = {
   id: string;
   title: string;
   icon: string | null;
+  cover: string | null;
   position: string;
   createdAt: Date;
   updatedAt: Date;
@@ -102,6 +105,7 @@ async function loadRows(where: ReturnType<typeof and>) {
       databaseId: pages.parentId,
       title: pages.title,
       icon: pages.icon,
+      cover: pages.cover,
       position: pages.position,
       createdAt: pages.createdAt,
       updatedAt: pages.updatedAt,
@@ -203,8 +207,93 @@ export async function getRows(databaseId: string, properties: Property[], onlyRo
           props[prop.id] = row.props[prop.id] ?? null;
       }
     }
+    applyFormulas(properties, row, props);
     return { ...row, databaseId, props } satisfies RowRecord & { databaseId: string };
   });
+}
+
+/* ---------- Formulas ---------- */
+
+const TITLE_NAMES = new Set(["title", "name", "nom", "titre"]);
+
+/** Value of a resolved property as a formula sees it (option names, relation titles, dates as Date). */
+function formulaValue(prop: Property, v: unknown): FValue {
+  if (v === null || v === undefined) return prop.type === "checkbox" ? false : null;
+  switch (prop.type) {
+    case "select":
+    case "status":
+      return options(prop).find((o) => o.id === v)?.name ?? null;
+    case "multi_select":
+      return Array.isArray(v) ? v.map((id) => options(prop).find((o) => o.id === id)?.name ?? "").filter(Boolean) : [];
+    case "relation":
+      return Array.isArray(v) ? (v as LinkedRow[]).map((l) => l.title) : [];
+    case "date":
+    case "created_time":
+    case "last_edited_time": {
+      const d = new Date(String(v).length === 10 ? `${v}T00:00:00Z` : String(v));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    case "formula":
+      return v && typeof v === "object" && !Array.isArray(v) ? null : (v as FValue);
+    default:
+      return Array.isArray(v) ? (v as FValue[]) : (v as FValue);
+  }
+}
+
+/** Evaluates formula properties in place; formulas may reference other formulas (cycles report an error). */
+export function applyFormulas(properties: Property[], row: { title: string }, props: Record<string, unknown>) {
+  const formulas = properties.filter((p) => p.type === "formula");
+  if (!formulas.length) return;
+  const byName = new Map<string, Property>();
+  for (const p of properties) byName.set(p.name.toLowerCase(), p);
+  const done = new Set<string>();
+  const active = new Set<string>();
+  const now = new Date();
+  const evalFormula = (f: Property) => {
+    if (done.has(f.id)) return;
+    if (active.has(f.id)) throw new Error(`Circular reference through "${f.name}"`);
+    active.add(f.id);
+    props[f.id] = runFormula(
+      String(f.config.expression ?? ""),
+      (name) => {
+        const p = byName.get(name.toLowerCase()) ?? properties.find((x) => x.id === name);
+        if (!p) {
+          if (TITLE_NAMES.has(name.toLowerCase())) return row.title;
+          throw new Error(`No property named "${name}"`);
+        }
+        if (p.type === "formula") {
+          evalFormula(p);
+          const r = props[p.id];
+          if (r && typeof r === "object" && !Array.isArray(r)) throw new Error(`"${p.name}" has an error`);
+        }
+        return formulaValue(p, props[p.id]);
+      },
+      now,
+    );
+    active.delete(f.id);
+    done.add(f.id);
+  };
+  for (const f of formulas) {
+    try {
+      evalFormula(f);
+    } catch (e) {
+      props[f.id] = { error: e instanceof Error ? e.message : String(e) };
+      active.clear();
+      done.add(f.id);
+    }
+  }
+}
+
+/** Throws a DatabaseError for a formula that doesn't parse. */
+export function checkExpression(expression: unknown) {
+  if (typeof expression !== "string") throw new DatabaseError("A formula needs an expression");
+  if (expression.length > 5000) throw new DatabaseError("Formula too long");
+  if (!expression.trim()) return;
+  try {
+    compileFormula(expression);
+  } catch (e) {
+    throw new DatabaseError(`Formula: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /* ---------- Rollups ---------- */
@@ -447,6 +536,8 @@ export function defaultConfig(type: PropertyType, config: Record<string, unknown
       return { format: "number", ...config };
     case "rollup":
       return { fn: "count", targetPropertyId: "title", ...config };
+    case "formula":
+      return { expression: "", ...config };
     default:
       return config;
   }
@@ -472,6 +563,7 @@ export async function createProperty(
     if (!rel || rel.databaseId !== databaseId || rel.type !== "relation")
       throw new DatabaseError("A rollup needs a relation of this database");
   }
+  if (input.type === "formula") checkExpression(config.expression);
   const twoWay = input.type === "relation" && config.twoWay !== false;
   delete config.twoWay;
   const [prop] = await db
@@ -506,9 +598,9 @@ export async function createProperty(
 export async function convertProperty(prop: Property, to: PropertyType) {
   const from = prop.type;
   if (from === to) return prop;
-  const special: PropertyType[] = ["relation", "rollup"];
+  const special: PropertyType[] = ["relation", "rollup", "formula"];
   if (special.includes(from) || special.includes(to))
-    throw new DatabaseError("Relations and rollups can't change type: delete and recreate the property");
+    throw new DatabaseError("Relations, rollups and formulas can't change type: delete and recreate the property");
 
   const rows = await db
     .select({ id: pages.id, props: pages.props })
@@ -569,6 +661,7 @@ export async function createDatabase(input: {
   properties?: { name: string; type: PropertyType; config?: Record<string, unknown> }[];
   viewName?: string;
 }) {
+  for (const p of input.properties ?? []) if (p.type === "formula") checkExpression(p.config?.expression ?? "");
   const [page] = await db
     .insert(pages)
     .values({
@@ -719,6 +812,11 @@ export function formatValue(prop: Property, value: unknown, people: Map<string, 
       return (value as string[]).map((id) => people.get(id) ?? id).join(", ");
     case "relation":
       return (value as LinkedRow[]).map((r) => `${r.title || "Untitled"} (${r.id})`).join(", ");
+    case "formula":
+      if (typeof value === "object" && value && !Array.isArray(value))
+        return `#ERROR: ${(value as { error: string }).error}`;
+      if (typeof value === "boolean") return value ? "✓" : "✗";
+      return Array.isArray(value) ? value.join(", ") : String(value);
     case "rollup":
       return Array.isArray(value)
         ? value.join(", ")

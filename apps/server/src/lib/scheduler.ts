@@ -4,7 +4,9 @@ import { getSetting, setSetting } from "./settings.js";
 import { pruneVersions } from "./versions.js";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { files } from "../db/schema.js";
+import { files, pages } from "../db/schema.js";
+import * as Y from "yjs";
+import { extractCover } from "./ydoc.js";
 import { removeFile } from "./storage.js";
 
 /** Files whose page was deleted forever (a day ago or more). */
@@ -29,11 +31,31 @@ async function removeOrphanFiles() {
   return removed;
 }
 
+/** One-time fill of gallery covers for rows saved before covers existed. */
+async function backfillCovers() {
+  const done = await getSetting<boolean>("coversBackfilled", false);
+  if (done) return;
+  const rows = await db
+    .select({ id: pages.id, state: pages.yjsState })
+    .from(pages)
+    .where(and(eq(pages.type, "row"), isNull(pages.cover)));
+  for (const r of rows) {
+    if (!r.state) continue;
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, r.state);
+    const cover = extractCover(doc);
+    doc.destroy();
+    if (cover) await db.update(pages).set({ cover }).where(eq(pages.id, r.id));
+  }
+  await setSetting("coversBackfilled", true);
+}
+
 /**
  * Daily maintenance at the configured hour (container time zone, set TZ):
  * a backup to every configured target, then version-history thinning.
  */
 export function startScheduler() {
+  backfillCovers().catch((e) => console.error("[covers]", e));
   const tick = async () => {
     try {
       const cfg = await getBackupSettings();

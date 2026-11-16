@@ -7,6 +7,7 @@ import {
   CircleDot,
   Clock,
   FileText,
+  SquareFunction,
   Hash,
   Link2,
   List,
@@ -34,7 +35,7 @@ import {
   type SelectOption,
   type TagColor,
 } from "@/lib/api";
-import { formatDate, formatNumber, optionFor, propertyOptions, READ_ONLY_TYPES } from "@/lib/database";
+import { formatDate, formatNumber, isFormulaError, optionFor, propertyOptions, READ_ONLY_TYPES } from "@/lib/database";
 import { localeOf, useI18n } from "@/lib/i18n";
 import { cn, colorFor, initials } from "@/lib/utils";
 
@@ -58,6 +59,7 @@ export function PropertyIcon({ type, className }: { type: PropertyType | "title"
       person: User,
       relation: ArrowUpRight,
       rollup: Sigma,
+      formula: SquareFunction,
       created_time: Clock,
       last_edited_time: Clock,
     }[type] ?? List;
@@ -196,6 +198,28 @@ export function CellValue({ prop, row, data }: { prop: Property; row: Row; data:
               <span className="truncate">{r.title || "—"}</span>
             </Link>
           ))}
+        </span>
+      );
+    case "formula":
+      if (isFormulaError(v))
+        return (
+          <span className="truncate text-xs text-destructive" title={v.error}>
+            ⚠ {v.error}
+          </span>
+        );
+      if (typeof v === "boolean") return <Checkbox checked={v} />;
+      if (typeof v === "number")
+        return (
+          <span className="block text-right tabular-nums">
+            {new Intl.NumberFormat(locale, { maximumFractionDigits: 4 }).format(v)}
+          </span>
+        );
+      if (Array.isArray(v)) return <span className="truncate">{v.join(", ")}</span>;
+      return (
+        <span className="truncate">
+          {/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(String(v))
+            ? formatDate(String(v).replace(" ", "T"), locale, String(v).length > 10)
+            : String(v)}
         </span>
       );
     case "rollup":
