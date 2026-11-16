@@ -45,7 +45,8 @@ export function useCollab(pageId: string) {
     });
 
     const update = () => {
-      if (provider.configuration.websocketProvider.status !== "connected") setStatus(provider.isSynced ? "offline" : navigator.onLine ? "connecting" : "offline");
+      if (provider.configuration.websocketProvider.status !== "connected")
+        setStatus(provider.isSynced ? "offline" : navigator.onLine ? "connecting" : "offline");
       else if (!provider.isSynced) setStatus("connecting");
       else setStatus(provider.hasUnsyncedChanges ? "saving" : "synced");
     };

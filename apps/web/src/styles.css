@@ -90,53 +90,51 @@ body {
 }
 
 @layer base {
-/* Focus: 2px ribbon outline, offset 2px, on every focusable element — never removed. */
-:where(a, button, input, textarea, select, [tabindex], [role="button"]):focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
+  /* Focus: 2px ribbon outline, offset 2px, on every focusable element — never removed. */
+  :where(a, button, input, textarea, select, [tabindex], [role="button"]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
-/* ---------- Type styles from the design system ---------- */
-.page-title {
-  font-family: var(--font-serif);
-  font-size: 40px;
-  line-height: 48px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.caps-label {
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.heading {
-  font-size: 18px;
-  line-height: 28px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
+  /* ---------- Type styles from the design system ---------- */
+  .page-title {
+    font-family: var(--font-serif);
+    font-size: 40px;
+    line-height: 48px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .caps-label {
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .heading {
+    font-size: 18px;
+    line-height: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
 
-/* Wordmark: "Calepin" in Geist 600 followed by a ribbon square dot. */
-.wordmark {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.wordmark::after {
-  content: "";
-  display: inline-block;
-  width: 0.28em;
-  height: 0.28em;
-  margin-left: 0.12em;
-  background: var(--ribbon);
-  border-radius: 1px;
-}
-
+  /* Wordmark: "Calepin" in Geist 600 followed by a ribbon square dot. */
+  .wordmark {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .wordmark::after {
+    content: "";
+    display: inline-block;
+    width: 0.28em;
+    height: 0.28em;
+    margin-left: 0.12em;
+    background: var(--ribbon);
+    border-radius: 1px;
+  }
 }
 
 /* ---------- BlockNote, themed by the tokens ---------- */

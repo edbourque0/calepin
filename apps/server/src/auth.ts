@@ -5,6 +5,7 @@ import { count } from "drizzle-orm";
 import { db } from "./db/index.js";
 import * as schema from "./db/schema.js";
 import { env, oidcEnabled } from "./env.js";
+import { findValidInvite } from "./lib/invites.js";
 import { createPersonalWorkspace } from "./lib/workspaces.js";
 
 export const OIDC_PROVIDER_ID = "oidc";
@@ -46,11 +47,16 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
+        before: async (user, ctx) => {
           if (env.ALLOW_SIGNUP) return { data: user };
           // The very first account can always be created, so a fresh install is usable.
           const [{ value }] = await db.select({ value: count() }).from(schema.user);
-          return value === 0 ? { data: user } : false;
+          if (value === 0) return { data: user };
+          // People holding a valid invitation link can create an account even when sign-up is closed.
+          const headers = ctx?.headers ?? ctx?.request?.headers;
+          const token = headers?.get("cookie")?.match(/(?:^|;\s*)calepin_invite=([^;]+)/)?.[1];
+          if (token && (await findValidInvite(decodeURIComponent(token)))) return { data: user };
+          return false;
         },
         after: async (user) => {
           await createPersonalWorkspace(user.id, user.name);

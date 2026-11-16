@@ -90,7 +90,9 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           <Kbd>esc</Kbd>
         </div>
         <Command.List className="overflow-y-auto px-2 pt-1 pb-2">
-          <Command.Empty className="px-3 py-8 text-center text-sm text-muted-foreground">{t("search.empty")}</Command.Empty>
+          <Command.Empty className="px-3 py-8 text-center text-sm text-muted-foreground">
+            {t("search.empty")}
+          </Command.Empty>
           {data && data.length > 0 && (
             <Command.Group
               heading={dq ? t("search.results") : t("search.recent")}
@@ -104,12 +106,20 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                   className="group flex min-h-9 cursor-pointer items-start gap-2 rounded-sm px-2 py-2 data-[selected=true]:bg-accent"
                 >
                   <span className="flex size-5 items-center justify-center text-muted-foreground">
-                    {r.icon ? <span className="text-base leading-none">{r.icon}</span> : <FileText className="size-4" />}
+                    {r.icon ? (
+                      <span className="text-base leading-none">{r.icon}</span>
+                    ) : (
+                      <FileText className="size-4" />
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">{r.title || t("page.untitled")}</span>
-                      {r.parentId && <span className="truncate text-xs text-muted-foreground">{path(r.id, r.parentId)}</span>}
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {r.title || t("page.untitled")}
+                      </span>
+                      {r.parentId && (
+                        <span className="truncate text-xs text-muted-foreground">{path(r.id, r.parentId)}</span>
+                      )}
                     </span>
                     {r.snippet && (
                       <span className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground">

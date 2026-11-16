@@ -41,7 +41,9 @@ export type AppConfig = { allowSignup: boolean; oidc: { name: string } | null };
 
 export type PageSummary = {
   id: string;
+  workspaceId: string;
   parentId: string | null;
+  publicSlug: string | null;
   position: string;
   type: "page" | "database" | "row";
   title: string;
@@ -60,3 +62,44 @@ export type SearchResult = {
 };
 
 export type TrashItem = { id: string; title: string; icon: string | null; deletedAt: string; parentId: string | null };
+
+export type SharedPage = PageSummary & { role: "editor" | "viewer" };
+
+export type PageMeta = PageSummary & {
+  role: Role;
+  isMember: boolean;
+  ancestors: { id: string; title: string; icon: string | null }[];
+};
+
+export type Sharing = {
+  canManage: boolean;
+  workspace: { name: string; members: number };
+  guests: {
+    userId: string;
+    name: string;
+    email: string;
+    role: "editor" | "viewer";
+    pageId: string;
+    pageTitle: string;
+  }[];
+  invites: { id: string; email: string | null; role: string; url: string; createdAt: string }[];
+  published: { slug: string; publishedAt: string } | null;
+};
+
+export type Members = {
+  myRole: Role;
+  members: { userId: string; name: string; email: string; role: Role; joinedAt: string }[];
+  invites: { id: string; email: string | null; role: Role; url: string; expiresAt: string }[];
+};
+
+export type ApiToken = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null };
+
+export type InviteInfo = {
+  valid: boolean;
+  kind: "page" | "workspace";
+  role: string;
+  workspace: string;
+  page: { title: string; icon: string | null } | null;
+  inviter: string | null;
+  email: string | null;
+};

@@ -1,16 +1,22 @@
 import { ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
 import { type DragEvent, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
-import type { PageSummary } from "@/lib/api";
+import type { PageSummary, SharedPage } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
-import { type PageIndex, usePageActions, usePageIndex } from "@/lib/workspace";
+import { type PageIndex, usePageActions, usePageIndex, useSharedIndex, useWorkspace } from "@/lib/workspace";
 
 const expandedStore = storage<string[]>("expanded", []);
 type DropZone = "before" | "inside" | "after";
 
-export function PageTree({ onNavigate }: { onNavigate?: () => void }) {
-  const index = usePageIndex();
+type TreeMode = "workspace" | "shared";
+
+export function PageTree({ onNavigate, mode = "workspace" }: { onNavigate?: () => void; mode?: TreeMode }) {
+  const workspaceIndex = usePageIndex();
+  const sharedIndex = useSharedIndex();
+  const index = mode === "shared" ? sharedIndex : workspaceIndex;
+  const { canEdit } = useWorkspace();
+  const editable = mode === "workspace" && canEdit;
   const [expanded, setExpanded] = useState(() => new Set(expandedStore.get()));
   const [dragId, setDragId] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; zone: DropZone } | null>(null);
@@ -66,6 +72,8 @@ export function PageTree({ onNavigate }: { onNavigate?: () => void }) {
           setDrop={setDrop}
           onDrop={onDrop}
           onNavigate={onNavigate}
+          editable={editable}
+          mode={mode}
         />
       ))}
     </div>
@@ -84,10 +92,15 @@ type NodeProps = {
   setDrop: (d: { id: string; zone: DropZone } | null) => void;
   onDrop: () => void;
   onNavigate?: () => void;
+  /** Workspace tree and the user can edit: drag, delete, add subpages. */
+  editable: boolean;
+  mode: TreeMode;
 };
 
 function TreeNode(props: NodeProps) {
-  const { page, depth, index, expanded, toggle, dragId, drop, setDragId, setDrop, onDrop, onNavigate } = props;
+  const { page, depth, index, expanded, toggle, dragId, drop, setDragId, setDrop, onDrop, onNavigate, editable, mode } =
+    props;
+  const canAddChild = editable || (mode === "shared" && (page as SharedPage).role === "editor");
   const { t } = useI18n();
   const navigate = useNavigate();
   const { pageId } = useParams();
@@ -97,7 +110,7 @@ function TreeNode(props: NodeProps) {
   const dropZone = drop?.id === page.id ? drop.zone : null;
 
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
-    if (!dragId || dragId === page.id) return;
+    if (!editable || !dragId || dragId === page.id) return;
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     const y = (e.clientY - r.top) / r.height;
@@ -106,7 +119,7 @@ function TreeNode(props: NodeProps) {
   };
 
   const addChild = async () => {
-    const created = await create.mutateAsync({ parentId: page.id });
+    const created = await create.mutateAsync({ parentId: page.id, workspaceId: page.workspaceId });
     toggle(page.id, true);
     navigate(`/p/${created.id}`);
     onNavigate?.();
@@ -120,7 +133,7 @@ function TreeNode(props: NodeProps) {
   return (
     <div>
       <div
-        draggable
+        draggable={editable}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", page.id);
@@ -153,7 +166,9 @@ function TreeNode(props: NodeProps) {
           {({ isActive }) => (
             <>
               {/* The ribbon marks the current page. */}
-              {isActive && <span className="absolute top-[7px] bottom-[7px] -left-2 w-[3px] rounded-r-[2px] bg-ribbon" />}
+              {isActive && (
+                <span className="absolute top-[7px] bottom-[7px] -left-2 w-[3px] rounded-r-[2px] bg-ribbon" />
+              )}
               <span
                 role="button"
                 aria-label={open ? "Collapse" : "Expand"}
@@ -170,35 +185,43 @@ function TreeNode(props: NodeProps) {
                 <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
               </span>
               <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                {page.icon ? <span className="text-[14px] leading-none">{page.icon}</span> : <FileText className="size-4" />}
+                {page.icon ? (
+                  <span className="text-[14px] leading-none">{page.icon}</span>
+                ) : (
+                  <FileText className="size-4" />
+                )}
               </span>
-          <span className="flex-1 truncate">{page.title || t("page.untitled")}</span>
-          <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
-            <span
-              role="button"
-              title={t("nav.delete")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-destructive"
-            >
-              <Trash2 className="size-3.5" />
-            </span>
-            <span
-              role="button"
-              title={t("nav.addSubpage")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                addChild();
-              }}
-              className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <Plus className="size-4" />
-            </span>
-          </span>
+              <span className="flex-1 truncate">{page.title || t("page.untitled")}</span>
+              <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
+                {editable && (
+                  <span
+                    role="button"
+                    title={t("nav.delete")}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </span>
+                )}
+                {canAddChild && (
+                  <span
+                    role="button"
+                    title={t("nav.addSubpage")}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      addChild();
+                    }}
+                    className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <Plus className="size-4" />
+                  </span>
+                )}
+              </span>
             </>
           )}
         </NavLink>

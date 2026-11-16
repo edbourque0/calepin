@@ -1,4 +1,12 @@
-import { type ButtonHTMLAttributes, forwardRef, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ButtonHTMLAttributes,
+  forwardRef,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { cn, colorFor, initials } from "@/lib/utils";
 
@@ -20,7 +28,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         size === "sm" && "h-8 gap-1.5 px-3 text-[13px]",
         size === "default" && "h-9 px-4 text-sm",
         size === "lg" && "h-10 px-6 text-sm",
-        variant === "default" && "bg-primary text-primary-foreground hover:bg-[color-mix(in_oklch,var(--primary)_88%,var(--background))]",
+        variant === "default" &&
+          "bg-primary text-primary-foreground hover:bg-[color-mix(in_oklch,var(--primary)_88%,var(--background))]",
         variant === "secondary" && "bg-secondary text-secondary-foreground hover:bg-accent",
         variant === "outline" && "border-input bg-background text-foreground shadow-xs hover:bg-accent",
         variant === "ghost" && "text-foreground hover:bg-accent",
@@ -210,5 +219,74 @@ export function MenuItem({
       <span className="flex-1 truncate">{children}</span>
       {hint}
     </button>
+  );
+}
+
+/* ---------- Switch & Tabs (design system) ---------- */
+
+export function Switch({
+  checked,
+  onCheckedChange,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  disabled?: boolean;
+  /** Accessible name when there is no visible label. */
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={cn(
+        "relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        checked ? "border-primary bg-primary" : "border-input bg-muted",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-[2px] left-[2px] size-3.5 rounded-full transition-transform",
+          checked ? "translate-x-4 bg-primary-foreground" : "bg-muted-foreground",
+        )}
+      />
+    </button>
+  );
+}
+
+export function Tabs<T extends string>({
+  value,
+  items,
+  onChange,
+}: {
+  value: T;
+  items: { value: T; label: ReactNode; icon?: ReactNode }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="tablist" className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
+      {items.map((it) => (
+        <button
+          key={it.value}
+          role="tab"
+          aria-selected={value === it.value}
+          onClick={() => onChange(it.value)}
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-3 text-[13px] font-medium transition-colors [&_svg]:size-3.5",
+            value === it.value
+              ? "border-border bg-background text-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {it.icon}
+          {it.label}
+        </button>
+      ))}
+    </div>
   );
 }

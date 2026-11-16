@@ -9,6 +9,7 @@ import { api, ApiError, type Me } from "./lib/api";
 import { I18nProvider } from "./lib/i18n";
 import { WorkspaceProvider } from "./lib/workspace";
 import { Home } from "./routes/Home";
+import { Invite } from "./routes/Invite";
 import { Login } from "./routes/Login";
 import { PageView } from "./routes/PageView";
 
@@ -31,7 +32,10 @@ function AuthGate() {
         <Spinner />
       </div>
     );
-  if (error instanceof ApiError && error.status === 401) return <Navigate to="/login" replace />;
+  if (error instanceof ApiError && error.status === 401) {
+    const here = window.location.pathname + window.location.search;
+    return <Navigate to={here === "/" ? "/login" : `/login?next=${encodeURIComponent(here)}`} replace />;
+  }
   if (!data) return <div className="p-8 text-sm text-muted-foreground">{String(error)}</div>;
   return (
     <WorkspaceProvider me={data}>
@@ -42,6 +46,7 @@ function AuthGate() {
 
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
+  { path: "/invite/:token", element: <Invite /> },
   {
     path: "/",
     element: <AuthGate />,

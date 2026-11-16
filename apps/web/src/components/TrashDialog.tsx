@@ -37,11 +37,17 @@ export function TrashDialog({ open, onClose }: { open: boolean; onClose: () => v
             <Spinner />
           </div>
         )}
-        {data?.length === 0 && <p className="px-6 py-10 text-center text-sm text-muted-foreground">{t("trash.empty")}</p>}
+        {data?.length === 0 && (
+          <p className="px-6 py-10 text-center text-sm text-muted-foreground">{t("trash.empty")}</p>
+        )}
         {data?.map((item) => (
           <div key={item.id} className="group flex h-10 items-center gap-2 rounded-sm px-2 hover:bg-accent">
             <span className="flex size-5 items-center justify-center text-muted-foreground">
-              {item.icon ? <span className="text-base leading-none">{item.icon}</span> : <FileText className="size-4" />}
+              {item.icon ? (
+                <span className="text-base leading-none">{item.icon}</span>
+              ) : (
+                <FileText className="size-4" />
+              )}
             </span>
             <span className="flex-1 truncate text-sm">{item.title || t("page.untitled")}</span>
             <span className="text-xs text-muted-foreground tabular-nums">{rel(item.deletedAt)}</span>

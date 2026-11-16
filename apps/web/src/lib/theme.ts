@@ -17,7 +17,9 @@ function apply() {
   const theme = resolve(store.get());
   document.documentElement.dataset.theme = theme;
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg || (theme === "dark" ? "#1b1918" : "#fcfbf9"));
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", bg || (theme === "dark" ? "#1b1918" : "#fcfbf9"));
   listeners.forEach((l) => l());
 }
 

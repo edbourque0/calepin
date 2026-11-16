@@ -121,16 +121,84 @@ export const pages = pgTable(
     /** Plain-text projection of the document, used for search and previews. */
     contentText: text("content_text").notNull().default(""),
     search: tsvector("search").generatedAlwaysAs(
-      sql`setweight(to_tsvector('simple', coalesce("title", '')), 'A') || setweight(to_tsvector('simple', coalesce("content_text", '')), 'B')`,
+      sql`setweight(to_tsvector('calepin'::regconfig, coalesce("title", '')), 'A') || setweight(to_tsvector('calepin'::regconfig, coalesce("content_text", '')), 'B')`,
     ),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** Set when the page is published to the web at /s/<publicSlug>. */
+    publicSlug: text("public_slug").unique(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
   },
   (t) => [
     index("pages_workspace_parent_idx").on(t.workspaceId, t.parentId),
     index("pages_search_idx").using("gin", t.search),
   ],
+);
+
+/* ---------- Sharing ---------- */
+
+export type ShareRole = "editor" | "viewer";
+
+/** Access to a page (and its subpages) for people who are not members of the workspace. */
+export const pageShares = pgTable(
+  "page_shares",
+  {
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<ShareRole>().notNull().default("viewer"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("page_shares_user_idx").on(t.userId)],
+);
+
+/**
+ * Invitation links. With pageId null it invites to the workspace (role = workspace role);
+ * with pageId set it shares that page (role = share role).
+ */
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    token: text("token").notNull().unique(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    pageId: uuid("page_id").references(() => pages.id, { onDelete: "cascade" }),
+    email: text("email"),
+    role: text("role").$type<WorkspaceRole | ShareRole>().notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedBy: text("accepted_by").references(() => user.id, { onDelete: "set null" }),
+  },
+  (t) => [index("invites_workspace_idx").on(t.workspaceId)],
+);
+
+/* ---------- API tokens (REST + MCP) ---------- */
+
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** SHA-256 of the token; the token itself is shown once and never stored. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** First characters, to recognise a token in the list. */
+    prefix: text("prefix").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [index("api_tokens_user_idx").on(t.userId)],
 );

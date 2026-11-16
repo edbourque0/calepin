@@ -4,7 +4,8 @@ import { NavLink, useNavigate } from "react-router";
 import { authClient } from "@/lib/auth-client";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { usePageActions, useWorkspace } from "@/lib/workspace";
+import { usePageActions, useSharedPages, useWorkspace } from "@/lib/workspace";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { PageTree } from "./PageTree";
 import { Avatar, IconButton, Kbd } from "./ui";
 
@@ -24,7 +25,8 @@ export function Sidebar({
   onSettings: () => void;
 }) {
   const { t } = useI18n();
-  const { me, workspace } = useWorkspace();
+  const { me, canEdit } = useWorkspace();
+  const { data: shared } = useSharedPages();
   const { create } = usePageActions();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -43,11 +45,8 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-full flex-col bg-sidebar">
-      <div className="flex h-14 items-center gap-2 pr-3 pl-4">
-        <div className="min-w-0 flex-1 leading-tight">
-          <span className="wordmark text-[17px]">Calepin</span>
-          <div className="truncate text-xs text-muted-foreground">{workspace.name}</div>
-        </div>
+      <div className="flex h-14 items-center gap-1 pr-3 pl-2">
+        <WorkspaceSwitcher onNavigate={onNavigate} />
         <IconButton label={t("nav.collapse")} onClick={onCollapse}>
           <ChevronsLeft className="size-4" />
         </IconButton>
@@ -67,21 +66,33 @@ export function Sidebar({
         </NavItem>
       </div>
 
-      <div className="mt-4 flex items-center justify-between pr-2 pl-4 pb-1">
-        <span className="caps-label">{t("nav.pages")}</span>
-        <IconButton label={t("nav.newPage")} onClick={newPage} className="size-6">
-          <Plus className="size-4" />
-        </IconButton>
-      </div>
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      <nav className="mt-4 min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        <div className="flex items-center justify-between pr-0 pb-1 pl-2">
+          <span className="caps-label">{t("nav.pages")}</span>
+          {canEdit && (
+            <IconButton label={t("nav.newPage")} onClick={newPage} className="size-6">
+              <Plus className="size-4" />
+            </IconButton>
+          )}
+        </div>
         <PageTree onNavigate={onNavigate} />
-        <button
-          onClick={newPage}
-          className="mt-px flex h-[30px] w-full items-center gap-1.5 rounded-sm pl-[30px] text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-        >
-          <Plus className="size-4" />
-          {t("nav.newPage")}
-        </button>
+        {canEdit && (
+          <button
+            onClick={newPage}
+            className="mt-px flex h-[30px] w-full items-center gap-1.5 rounded-sm pl-[30px] text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
+            <Plus className="size-4" />
+            {t("nav.newPage")}
+          </button>
+        )}
+        {(shared?.length ?? 0) > 0 && (
+          <>
+            <div className="mt-5 pb-1 pl-2">
+              <span className="caps-label">{t("nav.shared")}</span>
+            </div>
+            <PageTree onNavigate={onNavigate} mode="shared" />
+          </>
+        )}
       </nav>
 
       <div className="flex flex-col gap-px border-t border-sidebar-border px-2 py-2">
@@ -143,7 +154,15 @@ function NavItem({
   );
 }
 
-function SideButton({ icon, children, onClick }: { icon: React.ReactNode; children: React.ReactNode; onClick: () => void }) {
+function SideButton({
+  icon,
+  children,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}

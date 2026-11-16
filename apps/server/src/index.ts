@@ -11,7 +11,12 @@ import { handleCollabUpgrade, hocuspocus } from "./collab.js";
 import { client, runMigrations } from "./db/index.js";
 import { env, oidcEnabled } from "./env.js";
 import { type AppEnv, requireUser } from "./http.js";
+import { mcpRoutes } from "./mcp.js";
+import { inviteRoutes } from "./routes/invites.js";
 import { pageRoutes } from "./routes/pages.js";
+import { publicRoutes } from "./routes/public.js";
+import { sharingRoutes } from "./routes/sharing.js";
+import { tokenRoutes } from "./routes/tokens.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 
 await runMigrations();
@@ -34,14 +39,29 @@ app.get("/api/config", (c) =>
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
-const api = new Hono<AppEnv>().use(requireUser).route("/", workspaceRoutes).route("/", pageRoutes);
+app.route("/api", inviteRoutes);
+
+const api = new Hono<AppEnv>()
+  .use(requireUser)
+  .route("/", workspaceRoutes)
+  .route("/", pageRoutes)
+  .route("/", sharingRoutes)
+  .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
-/* ----- Web app (built SPA) ----- */
+/* ----- MCP server (Streamable HTTP, bearer token) ----- */
+app.route("/", mcpRoutes);
+
+/* ----- Web app (built SPA) and public pages ----- */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist =
   env.WEB_DIST ?? [path.resolve(here, "../../web/dist"), path.resolve(here, "../web")].find((p) => existsSync(p));
+const appCss =
+  webDist && existsSync(path.join(webDist, "index.html"))
+    ? (readFileSync(path.join(webDist, "index.html"), "utf8").match(/href="(\/assets\/[^"]+\.css)"/)?.[1] ?? null)
+    : null;
+app.route("/", publicRoutes(appCss));
 
 if (webDist && existsSync(path.join(webDist, "index.html"))) {
   const indexHtml = readFileSync(path.join(webDist, "index.html"), "utf8");

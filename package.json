@@ -7,6 +7,12 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm --filter @calepin/web build && pnpm --filter @calepin/server build",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @calepin/server db:generate"
+    "db:generate": "pnpm --filter @calepin/server db:generate",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx,css}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.10.1",
+    "prettier-plugin-tailwindcss": "^0.8.1"
   }
 }

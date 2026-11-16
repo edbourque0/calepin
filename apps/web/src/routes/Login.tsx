@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, KeyRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Button, Spinner } from "@/components/ui";
 import { api, type AppConfig } from "@/lib/api";
 import { authClient, OIDC_PROVIDER_ID } from "@/lib/auth-client";
@@ -12,7 +12,10 @@ export function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: () => api.get<AppConfig>("/config") });
-  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [params] = useSearchParams();
+  const next = params.get("next")?.startsWith("/") ? params.get("next")! : "/";
+  const hasInvite = document.cookie.includes("calepin_invite=");
+  const [mode, setMode] = useState<"signIn" | "signUp">(params.get("mode") === "signUp" ? "signUp" : "signIn");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,10 +36,10 @@ export function Login() {
       return;
     }
     await qc.invalidateQueries({ queryKey: ["me"] });
-    navigate("/", { replace: true });
+    navigate(next, { replace: true });
   };
 
-  const sso = () => authClient.signIn.social({ provider: OIDC_PROVIDER_ID, callbackURL: "/" });
+  const sso = () => authClient.signIn.social({ provider: OIDC_PROVIDER_ID, callbackURL: next });
 
   const input =
     "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs placeholder:text-muted-foreground";
@@ -106,7 +109,7 @@ export function Login() {
           </form>
         </div>
 
-        {config?.allowSignup && (
+        {(config?.allowSignup || hasInvite) && (
           <p className="mt-5 text-center text-sm text-muted-foreground">
             {mode === "signIn" ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
             <button

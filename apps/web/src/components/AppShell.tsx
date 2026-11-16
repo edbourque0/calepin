@@ -3,6 +3,7 @@ import { createContext, type ReactNode, useContext, useEffect, useState } from "
 import { Outlet } from "react-router";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { useWorkspaceEvents } from "@/lib/workspace";
 import { cn, storage } from "@/lib/utils";
 import { SearchDialog } from "./SearchDialog";
 import { SettingsDialog } from "./SettingsDialog";
@@ -18,6 +19,7 @@ export const useShell = () => useContext(ShellContext)!;
 
 export function AppShell() {
   const { theme, setTheme } = useTheme();
+  useWorkspaceEvents();
   const [collapsed, setCollapsed] = useState(collapsedStore.get);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dialog, setDialog] = useState<"search" | "trash" | "settings" | null>(null);

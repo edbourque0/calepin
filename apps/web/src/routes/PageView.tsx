@@ -1,4 +1,5 @@
-import { ChevronRight, Cloud, CloudOff, FileText, Lock, RefreshCw, SmilePlus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, Cloud, CloudOff, FileText, Globe, Lock, RefreshCw, Share2, SmilePlus } from "lucide-react";
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import type * as Y from "yjs";
@@ -7,32 +8,81 @@ import type { EditorHandle } from "@/components/Editor";
 
 const Editor = lazy(() => import("@/components/Editor").then((m) => ({ default: m.Editor })));
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { SharePanel } from "@/components/SharePanel";
 import { Button, Popover, Spinner } from "@/components/ui";
 import { type Collab, type SyncStatus, TITLE_TEXT, usePresence, useCollab } from "@/lib/collab";
 import { useI18n } from "@/lib/i18n";
 import { cn, initials, storage } from "@/lib/utils";
-import { usePageActions, usePageIndex, usePages } from "@/lib/workspace";
+import { api, type PageMeta, type PageSummary } from "@/lib/api";
+import { usePageActions, usePageIndex, usePages, useSharedIndex, useSharedPages, useWorkspace } from "@/lib/workspace";
 
 export const lastPageStore = storage<string | null>("last-page", null);
 
-export function PageView() {
-  const { pageId } = useParams();
-  const { isLoading } = usePages();
+type Crumb = { id: string; title: string; icon: string | null };
+type Resolved = { page: PageSummary; crumbs: Crumb[]; canShare: boolean };
+
+/**
+ * Finds the page in the current workspace tree, in "Shared with me", or asks the server
+ * (a link to a page in another workspace, or one shared through a parent).
+ */
+function useResolvedPage(pageId: string | undefined): { resolved: Resolved | null; loading: boolean } {
+  const { workspace, me, setWorkspace } = useWorkspace();
+  const { isLoading: loadingPages } = usePages();
+  const { isLoading: loadingShared } = useSharedPages();
   const index = usePageIndex();
-  const { t } = useI18n();
-  const page = pageId ? index.byId.get(pageId) : undefined;
+  const shared = useSharedIndex();
+  const inTree = pageId ? index.byId.get(pageId) : undefined;
+  const inShared = pageId && !inTree ? shared.byId.get(pageId) : undefined;
+  const meta = useQuery({
+    queryKey: ["page", pageId],
+    queryFn: () => api.get<PageMeta>(`/pages/${pageId}`),
+    enabled: !!pageId && !loadingPages && !loadingShared && !inTree && !inShared,
+    retry: false,
+  });
 
+  // A page from another workspace I belong to: switch to that workspace.
   useEffect(() => {
-    if (page) lastPageStore.set(page.id);
-  }, [page]);
+    const m = meta.data;
+    if (m?.isMember && m.workspaceId !== workspace.id && me.workspaces.some((w) => w.id === m.workspaceId))
+      setWorkspace(m.workspaceId);
+  }, [meta.data, workspace.id, me.workspaces, setWorkspace]);
 
-  if (isLoading) return <FullSpinner />;
-  if (!page) return <NotFound message={t("page.notFound")} />;
-  return <CollabPage key={page.id} pageId={page.id} />;
+  if (!pageId) return { resolved: null, loading: false };
+  if (inTree)
+    return {
+      resolved: { page: inTree, crumbs: [...index.ancestors(pageId), inTree], canShare: true },
+      loading: false,
+    };
+  if (inShared)
+    return {
+      resolved: { page: inShared, crumbs: [...shared.ancestors(pageId), inShared], canShare: true },
+      loading: false,
+    };
+  if (loadingPages || loadingShared || meta.isLoading) return { resolved: null, loading: true };
+  if (!meta.data) return { resolved: null, loading: false };
+  return {
+    resolved: { page: meta.data, crumbs: [...meta.data.ancestors, meta.data], canShare: true },
+    loading: false,
+  };
 }
 
-function CollabPage({ pageId }: { pageId: string }) {
+export function PageView() {
+  const { pageId } = useParams();
   const { t } = useI18n();
+  const { resolved, loading } = useResolvedPage(pageId);
+
+  useEffect(() => {
+    if (resolved) lastPageStore.set(resolved.page.id);
+  }, [resolved?.page.id]);
+
+  if (loading) return <FullSpinner />;
+  if (!resolved) return <NotFound message={t("page.notFound")} />;
+  return <CollabPage key={resolved.page.id} resolved={resolved} />;
+}
+
+function CollabPage({ resolved }: { resolved: Resolved }) {
+  const { t } = useI18n();
+  const pageId = resolved.page.id;
   const { collab, status, readOnly, denied, ready } = useCollab(pageId);
   const editorRef = useRef<EditorHandle>(null);
   const wantFocus = useRef(false);
@@ -50,11 +100,11 @@ function CollabPage({ pageId }: { pageId: string }) {
 
   return (
     <>
-      <PageTopBar pageId={pageId} status={status} readOnly={readOnly} collab={collab} />
+      <PageTopBar resolved={resolved} status={status} readOnly={readOnly} collab={collab} />
       <article className="mx-auto w-full max-w-[816px] px-6 pt-10 pb-[40vh] md:px-12 md:pt-16">
         {collab && ready ? (
           <>
-            <PageHeader pageId={pageId} doc={collab.doc} readOnly={readOnly} onEnter={focusEditor} />
+            <PageHeader page={resolved.page} doc={collab.doc} readOnly={readOnly} onEnter={focusEditor} />
             <div className="-mx-[54px] mt-3 max-md:-mx-6">
               <Suspense fallback={<div className="h-6" />}>
                 <Editor ref={editorRef} collab={collab} readOnly={readOnly} onReady={onEditorReady} />
@@ -74,28 +124,32 @@ function CollabPage({ pageId }: { pageId: string }) {
 }
 
 function PageTopBar({
-  pageId,
+  resolved,
   status,
   readOnly,
   collab,
 }: {
-  pageId: string;
+  resolved: Resolved;
   status: SyncStatus;
   readOnly: boolean;
   collab: Collab | null;
 }) {
   const { t } = useI18n();
-  const index = usePageIndex();
-  const page = index.byId.get(pageId);
-  const crumbs = [...index.ancestors(pageId), ...(page ? [page] : [])];
+  const crumbs = resolved.crumbs;
   const people = usePresence(collab?.provider);
+  const shareBtn = useRef<HTMLButtonElement>(null);
+  const [sharing, setSharing] = useState(false);
 
   return (
     <TopBar
       right={
         <>
           {people.length > 0 && (
-            <div className="flex items-center [&>*+*]:-ml-1" role="group" aria-label={people.map((p) => p.name).join(", ")}>
+            <div
+              className="flex items-center [&>*+*]:-ml-1"
+              role="group"
+              aria-label={people.map((p) => p.name).join(", ")}
+            >
               {people.slice(0, 4).map((p) => (
                 <span
                   key={p.clientId}
@@ -114,6 +168,17 @@ function PageTopBar({
             </div>
           )}
           <StatusBadge status={status} readOnly={readOnly} />
+          {resolved.canShare && (
+            <>
+              <Button ref={shareBtn} variant="ghost" size="sm" onClick={() => setSharing((s) => !s)}>
+                {resolved.page.publicSlug ? <Globe className="text-ribbon" /> : <Share2 />}
+                <span className="max-sm:hidden">{t("share.button")}</span>
+              </Button>
+              <Popover anchor={shareBtn} open={sharing} onClose={() => setSharing(false)} align="end" className="p-0">
+                <SharePanel pageId={resolved.page.id} />
+              </Popover>
+            </>
+          )}
         </>
       }
     >
@@ -147,10 +212,30 @@ function StatusBadge({ status, readOnly }: { status: SyncStatus; readOnly: boole
       </span>
     );
   const map = {
-    synced: { icon: <Cloud className="size-3.5" />, label: t("status.saved"), detail: t("status.savedDetail"), tone: "text-success" },
-    saving: { icon: <RefreshCw className="size-3.5 animate-spin" />, label: t("status.saving"), detail: t("status.saving"), tone: "text-muted-foreground" },
-    connecting: { icon: <RefreshCw className="size-3.5 animate-spin" />, label: t("status.connecting"), detail: t("status.connecting"), tone: "text-muted-foreground" },
-    offline: { icon: <CloudOff className="size-3.5" />, label: t("status.offline"), detail: t("status.offlineDetail"), tone: "text-warning" },
+    synced: {
+      icon: <Cloud className="size-3.5" />,
+      label: t("status.saved"),
+      detail: t("status.savedDetail"),
+      tone: "text-success",
+    },
+    saving: {
+      icon: <RefreshCw className="size-3.5 animate-spin" />,
+      label: t("status.saving"),
+      detail: t("status.saving"),
+      tone: "text-muted-foreground",
+    },
+    connecting: {
+      icon: <RefreshCw className="size-3.5 animate-spin" />,
+      label: t("status.connecting"),
+      detail: t("status.connecting"),
+      tone: "text-muted-foreground",
+    },
+    offline: {
+      icon: <CloudOff className="size-3.5" />,
+      label: t("status.offline"),
+      detail: t("status.offlineDetail"),
+      tone: "text-warning",
+    },
   }[status];
   return (
     <span role="status" title={map.detail} className={cn("flex items-center gap-1.5 text-xs font-medium", map.tone)}>
@@ -174,19 +259,19 @@ function useYText(text: Y.Text) {
 }
 
 function PageHeader({
-  pageId,
+  page,
   doc,
   readOnly,
   onEnter,
 }: {
-  pageId: string;
+  page: PageSummary;
   doc: Y.Doc;
   readOnly: boolean;
   onEnter: () => void;
 }) {
   const { t } = useI18n();
-  const index = usePageIndex();
-  const page = index.byId.get(pageId);
+  const pageId = page.id;
+  const qc = useQueryClient();
   const { patchLocal, setIcon } = usePageActions();
   const ytext = doc.getText(TITLE_TEXT);
   const title = useYText(ytext);
@@ -197,6 +282,7 @@ function PageHeader({
   // Mirror the live title into the sidebar, breadcrumbs and browser tab.
   useEffect(() => {
     patchLocal(pageId, { title: title.trim() });
+    qc.setQueryData<PageMeta>(["page", pageId], (old) => (old ? { ...old, title: title.trim() } : old));
     document.title = `${title.trim() || t("page.untitled")} · Calepin`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, pageId]);
@@ -234,6 +320,7 @@ function PageHeader({
 
   const pick = (icon: string | null) => {
     setIcon.mutate({ id: pageId, icon });
+    qc.setQueryData<PageMeta>(["page", pageId], (old) => (old ? { ...old, icon } : old));
     setPicker(false);
   };
 
@@ -263,7 +350,11 @@ function PageHeader({
         )
       )}
       <Popover anchor={iconBtn} open={picker} onClose={() => setPicker(false)}>
-        <EmojiPicker onPick={pick} onRemove={page?.icon ? () => pick(null) : undefined} removeLabel={t("page.removeIcon")} />
+        <EmojiPicker
+          onPick={pick}
+          onRemove={page?.icon ? () => pick(null) : undefined}
+          removeLabel={t("page.removeIcon")}
+        />
       </Popover>
       <textarea
         ref={area}
@@ -303,10 +394,11 @@ function NotFound({ message }: { message: string }) {
         </span>
         <p className="text-muted-foreground">{message}</p>
         <Link to="/">
-          <Button variant="outline" size="sm">{t("page.backHome")}</Button>
+          <Button variant="outline" size="sm">
+            {t("page.backHome")}
+          </Button>
         </Link>
       </div>
     </>
   );
 }
-

@@ -32,7 +32,7 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//, /^\/collab/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/collab/, /^\/mcp/, /^\/s\//],
       },
     }),
   ],
@@ -40,6 +40,8 @@ export default defineConfig({
     proxy: {
       "/api": { target: server, changeOrigin: false },
       "/collab": { target: server.replace(/^http/, "ws"), ws: true },
+      "/mcp": { target: server },
+      "/s/": { target: server },
     },
   },
   build: { chunkSizeWarningLimit: 2000 },

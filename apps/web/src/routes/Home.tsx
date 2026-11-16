@@ -16,7 +16,9 @@ export function Home() {
   const navigate = useNavigate();
 
   const hour = new Date().getHours();
-  const greeting = t(hour < 12 ? "home.greeting.morning" : hour < 18 ? "home.greeting.afternoon" : "home.greeting.evening");
+  const greeting = t(
+    hour < 12 ? "home.greeting.morning" : hour < 18 ? "home.greeting.afternoon" : "home.greeting.evening",
+  );
   const firstName = me.user.name.split(" ")[0];
 
   const now = Date.now();
@@ -83,7 +85,11 @@ export function Home() {
                     className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent ${i > 0 ? "border-t border-border" : ""}`}
                   >
                     <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                      {p.icon ? <span className="text-base leading-none">{p.icon}</span> : <FileText className="size-4" />}
+                      {p.icon ? (
+                        <span className="text-base leading-none">{p.icon}</span>
+                      ) : (
+                        <FileText className="size-4" />
+                      )}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{p.title || t("page.untitled")}</span>

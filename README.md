@@ -2,15 +2,20 @@
 
 A self-hosted notebook: pages, live collaboration, offline-ready PWA — with databases, version history, backups and public pages on the way. Runs on your own Docker host.
 
-## Features (Phase 1 — Foundation)
+## Features
 
 - **Block editor** (BlockNote): slash commands, headings, lists, to-dos, quotes, code, tables, images
 - **Live collaboration**: Yjs + Hocuspocus over a single WebSocket, with live cursors and presence
 - **Offline first**: every page is cached in IndexedDB, edits made offline sync when you reconnect
 - **Page tree**: nested pages, drag-and-drop to reorder or nest, emoji icons
-- **Search** (`Ctrl/⌘ K`): Postgres full-text search with highlighted snippets
+- **Search** (`Ctrl/⌘ K`): Postgres full-text search, accent-insensitive ("ete" finds "Été"), with highlighted snippets
 - **Trash**: deleted pages (and their subpages) can be restored or deleted forever
 - **Accounts**: email + password, optional OIDC single sign-on (Pocket ID, Authentik, Keycloak…)
+- **Workspaces & members**: several workspaces per person, owner / editor / viewer roles, invitations by email or link
+- **Page sharing**: share a page (and its subpages) with people outside the workspace, read-only or editable
+- **Publish to the web**: read-only public pages at `/s/<slug>`, rendered on the server
+- **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
+- **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes
 - **Installable PWA**, light/dark/system themes (`Ctrl/⌘ ⇧ L`), French and English
 
 ## Run it
@@ -42,6 +47,29 @@ Calepin works behind a reverse proxy or Cloudflare Tunnel; it needs WebSockets o
 
 For OIDC, register the redirect URI `PUBLIC_URL/api/auth/callback/oidc` with your identity provider.
 
+## MCP server
+
+Calepin exposes an [MCP](https://modelcontextprotocol.io) server at `PUBLIC_URL/mcp` (Streamable HTTP, stateless).
+Create a token in **Settings → API tokens**, then add the server to your client:
+
+```json
+{
+  "mcpServers": {
+    "calepin": {
+      "type": "http",
+      "url": "https://notes.example.com/mcp",
+      "headers": { "Authorization": "Bearer cp_…" }
+    }
+  }
+}
+```
+
+Tools: `list_workspaces`, `search_pages`, `list_pages`, `get_page` (Markdown), `create_page`, `append_to_page`,
+`replace_page_content`, `update_page` (rename, icon, move), `delete_page` (to the trash). Agents act with your
+permissions, and their edits appear live to anyone viewing the page.
+
+The same tokens work for the REST API (`Authorization: Bearer cp_…` on any `/api` route).
+
 ## Development
 
 Requirements: Node 22, pnpm 10, PostgreSQL 16+.
@@ -68,8 +96,8 @@ After changing `apps/server/src/db/schema.ts`, run `pnpm db:generate` to create 
 ## Roadmap
 
 1. ~~Foundation — auth, page tree, collaborative editor, search, Docker image~~
-2. Collaboration — comments, sharing and permissions, multiple users, MCP server
+2. ~~Collaboration — sharing and permissions, multiple users, public pages, MCP server~~
 3. Databases — properties, table/board views, relations, rollups
 4. Safety — version history, built-in backup/restore, export
-5. Sharing & mobile — public pages, Notion import
+5. Import & mobile polish — Notion import, Markdown export
 6. Extras — formulas, timeline view, API/webhooks, AI
