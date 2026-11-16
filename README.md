@@ -1,6 +1,7 @@
 # Calepin
 
-A self-hosted notebook: pages, live collaboration, offline-ready PWA — with databases, version history, backups and public pages on the way. Runs on your own Docker host.
+A self-hosted notebook: pages, live collaboration, databases, version history, backups, public pages, webhooks, an MCP
+server and an optional AI assistant — as an offline-ready PWA. Runs on your own Docker host.
 
 ## Features
 
@@ -16,8 +17,11 @@ A self-hosted notebook: pages, live collaboration, offline-ready PWA — with da
 - **Publish to the web**: read-only public pages at `/s/<slug>`, rendered on the server
 - **Databases**: full-page databases with typed properties (text, number, select, multi-select, status, date,
   checkbox, person, URL, email, phone, created/edited time), two-way **relations** and **rollups**
-  (count, sum, average, min/max, % checked, earliest/latest…). Table and board (Kanban) views with filters, sorts,
-  grouping and hidden properties. Every row is a page with its own content.
+  (count, sum, average, min/max, % checked, earliest/latest…) and **formulas** (`prop("Prix") * prop("Qté")`,
+  `dateBetween(prop("Échéance"), today(), "days")`…). Table, board (Kanban), gallery, calendar and timeline views
+  with filters, sorts, grouping and hidden properties; drag to reschedule on the calendar and timeline. Every row is a
+  page with its own content, and its first image becomes the gallery cover.
+- **Inline databases**: type `/database` in any page to embed a database right there
 - **Version history**: a version is kept every 10 minutes of editing, when the last person leaves a page and
   before an AI agent rewrites it. Browse versions, compare them with the page now, restore one (as a new change,
   so nothing is lost and collaborators keep working)
@@ -27,7 +31,12 @@ A self-hosted notebook: pages, live collaboration, offline-ready PWA — with da
   in a private S3-compatible bucket (Wasabi, AWS, MinIO…) configured in Settings → Storage
 - **Export**: any page as Markdown, any database as CSV, a whole workspace as a ZIP
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
-- **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes
+- **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes —
+  see the [REST API reference](docs/API.md)
+- **Webhooks**: signed HTTP notifications when pages or rows change (Settings → Webhooks)
+- **AI assistant** (`Ctrl/⌘ J`, optional): summarize, improve, shorten, continue or translate, and ask questions
+  answered from your own notes with links to the sources. Works with Ollama on your server, OpenAI, Anthropic or any
+  OpenAI-compatible API (Settings → AI)
 - **Installable PWA**, light/dark/system themes (`Ctrl/⌘ ⇧ L`), French and English
 
 ## Run it
@@ -132,6 +141,21 @@ permissions, and their edits appear live to anyone viewing the page.
 
 The same tokens work for the REST API (`Authorization: Bearer cp_…` on any `/api` route).
 
+## AI assistant
+
+Off until an administrator sets it up in **Settings → AI**. Pick a provider, check the URL and model, add a key
+(not needed for Ollama), **Test**, then **Save**:
+
+| Provider | API URL | Example model |
+| --- | --- | --- |
+| Ollama (same Docker network) | `http://ollama:11434/v1` | `llama3.2`, `qwen2.5` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4.1-mini` |
+| Anthropic | `https://api.anthropic.com/v1` | `claude-haiku-4-5` |
+| Other (OpenRouter, LM Studio, vLLM…) | its `/v1` URL | — |
+
+The key is stored encrypted. When someone uses the assistant, the page (or, for questions about your notes, the
+best-matching pages they can see in the workspace) is sent to that provider — use Ollama to keep everything at home.
+
 ## Development
 
 Requirements: Node 22, pnpm 10, PostgreSQL 16+.
@@ -164,5 +188,5 @@ After changing `apps/server/src/db/schema.ts`, run `pnpm db:generate` to create 
 2. ~~Collaboration — sharing and permissions, multiple users, public pages, MCP server~~
 3. ~~Databases — properties, table/board views, relations, rollups~~
 4. ~~Safety — version history, built-in backup/restore, export~~
-5. Import & mobile polish — Notion import, Markdown export
-6. Extras — formulas, calendar/gallery/timeline views, inline databases, API/webhooks, AI
+5. Import & mobile polish — Notion import, Markdown import
+6. ~~Extras — formulas, calendar/gallery/timeline views, inline databases, API/webhooks, AI~~

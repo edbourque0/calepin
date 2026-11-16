@@ -8,6 +8,7 @@ import {
   Monitor,
   Moon,
   Settings2,
+  Sparkles,
   Sun,
   Trash2,
   Users,
@@ -23,10 +24,11 @@ import { useWorkspace } from "@/lib/workspace";
 import { BackupsTab } from "./BackupsTab";
 import { StorageTab } from "./StorageTab";
 import { WebhooksTab } from "./WebhooksTab";
+import { AiTab } from "./AiTab";
 import { CopyButton, RoleSelect } from "./SharePanel";
 import { Avatar, Button, Dialog, IconButton, Spinner, Tabs } from "./ui";
 
-type Tab = "general" | "workspace" | "tokens" | "webhooks" | "storage" | "backups";
+type Tab = "general" | "workspace" | "tokens" | "webhooks" | "ai" | "storage" | "backups";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
@@ -38,14 +40,14 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} className="max-w-2xl">
+    <Dialog open={open} onClose={onClose} className="max-w-3xl">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
         <h2 className="heading">{t("settings.title")}</h2>
         <IconButton label={t("common.cancel")} onClick={onClose}>
           <X className="size-4" />
         </IconButton>
       </div>
-      <div className="px-5 pt-4">
+      <div className="overflow-x-auto px-5 pt-4 [&_[role=tab]]:whitespace-nowrap">
         <Tabs<Tab>
           value={tab}
           onChange={setTab}
@@ -56,6 +58,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             ...(isOwner ? [{ value: "webhooks" as const, label: t("webhooks.tab"), icon: <Webhook /> }] : []),
             ...(me.isAdmin
               ? [
+                  { value: "ai" as const, label: t("ai.tab"), icon: <Sparkles /> },
                   { value: "storage" as const, label: t("storage.tab"), icon: <HardDrive /> },
                   { value: "backups" as const, label: t("backup.tab"), icon: <DatabaseBackup /> },
                 ]
@@ -68,6 +71,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         {tab === "workspace" && <WorkspaceTab onClose={onClose} />}
         {tab === "tokens" && <TokensTab />}
         {tab === "webhooks" && <WebhooksTab />}
+        {tab === "ai" && <AiTab />}
         {tab === "storage" && <StorageTab />}
         {tab === "backups" && <BackupsTab />}
       </div>

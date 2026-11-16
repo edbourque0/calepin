@@ -19,7 +19,13 @@ const locales = { en, fr };
 /** BlockNote's blocks plus Calepin's inline database. Must match apps/server/src/lib/blocks.ts. */
 export const schema = BlockNoteSchema.create().extend({ blockSpecs: { database: DatabaseBlock() } });
 
-export type EditorHandle = { focusStart: () => void };
+export type EditorHandle = {
+  focusStart: () => void;
+  /** Text currently selected in the editor ("" when nothing is). */
+  getSelectedText: () => string;
+  /** Inserts Markdown after the cursor's block, or in place of the selected blocks. */
+  insertMarkdown: (markdown: string, mode: "after" | "replace") => Promise<void>;
+};
 
 type Props = {
   pageId: string;
@@ -75,6 +81,18 @@ export const Editor = forwardRef<EditorHandle, Props>(({ pageId, workspaceId, co
       const first = editor.document[0];
       if (first) editor.setTextCursorPosition(first, "start");
       editor.focus();
+    },
+    getSelectedText: () => editor.getSelectedText(),
+    insertMarkdown: async (markdown, mode) => {
+      const blocks = await editor.tryParseMarkdownToBlocks(markdown);
+      if (!blocks.length) return;
+      const selected = editor.getSelection()?.blocks;
+      if (mode === "replace" && selected?.length) {
+        editor.replaceBlocks(selected, blocks);
+        return;
+      }
+      const anchor = selected?.at(-1) ?? editor.getTextCursorPosition().block;
+      editor.insertBlocks(blocks, anchor, "after");
     },
   };
   useImperativeHandle(ref, () => handle, [editor]);

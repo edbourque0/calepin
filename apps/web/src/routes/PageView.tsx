@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Share2,
   SmilePlus,
+  Sparkles,
 } from "lucide-react";
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -25,7 +26,11 @@ import { DatabaseView } from "@/components/database/DatabaseView";
 import { RowProperties } from "@/components/database/RowProperties";
 import { SharePanel } from "@/components/SharePanel";
 import { HistoryPanel } from "@/components/HistoryPanel";
-import { Button, IconButton, MenuItem, Popover, Spinner } from "@/components/ui";
+import { AiPanel } from "@/components/AiPanel";
+import { openAiPanel, useAiEnabled } from "@/lib/ai";
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+import { Button, IconButton, Kbd, MenuItem, Popover, Spinner } from "@/components/ui";
 import { type Collab, type SyncStatus, TITLE_TEXT, usePresence, useCollab } from "@/lib/collab";
 import { useI18n } from "@/lib/i18n";
 import { cn, initials, storage } from "@/lib/utils";
@@ -113,10 +118,38 @@ function CollabPage({ resolved }: { resolved: Resolved }) {
     handle.focusStart();
   };
 
+  const aiEnabled = useAiEnabled();
+  const [aiOpen, setAiOpen] = useState(false);
+  useEffect(() => {
+    if (!aiEnabled) return;
+    const open = () => setAiOpen(true);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setAiOpen((o) => !o);
+      }
+    };
+    window.addEventListener("calepin:ai", open);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("calepin:ai", open);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [aiEnabled]);
+
   if (denied) return <NotFound message={t("page.notFound")} />;
 
   return (
     <>
+      {aiOpen && (
+        <AiPanel
+          pageId={pageId}
+          workspaceId={resolved.page.workspaceId}
+          editor={isDatabase ? null : editorRef.current}
+          canEdit={!readOnly}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
       <PageTopBar resolved={resolved} status={status} readOnly={readOnly} collab={collab} />
       <article
         className={cn(
@@ -248,12 +281,25 @@ function PageMenu({ resolved, readOnly }: { resolved: Resolved; readOnly: boolea
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
   const isDb = resolved.page.type === "database";
+  const ai = useAiEnabled();
   return (
     <>
       <IconButton ref={ref} label={t("page.more")} onClick={() => setOpen((o) => !o)}>
         <Ellipsis className="size-4" />
       </IconButton>
       <Popover anchor={ref} open={open} onClose={() => setOpen(false)} align="end" className="w-60">
+        {ai && (
+          <MenuItem
+            icon={<Sparkles className="size-4" />}
+            onClick={() => {
+              setOpen(false);
+              openAiPanel();
+            }}
+          >
+            {t("ai.title")}
+            <Kbd className="ml-auto">{isMac ? "⌘J" : "Ctrl J"}</Kbd>
+          </MenuItem>
+        )}
         {!isDb && (
           <MenuItem
             icon={<History className="size-4" />}

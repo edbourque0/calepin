@@ -40,7 +40,7 @@ export type Me = {
   isAdmin?: boolean;
 };
 
-export type AppConfig = { allowSignup: boolean; oidc: { name: string } | null; epoch: string };
+export type AppConfig = { allowSignup: boolean; oidc: { name: string } | null; epoch: string; ai?: boolean };
 
 export type PageSummary = {
   id: string;

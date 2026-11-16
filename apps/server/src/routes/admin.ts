@@ -20,6 +20,7 @@ import {
   targets,
 } from "../lib/backup.js";
 import { openSecret } from "../lib/secrets.js";
+import { AI_PRESETS, chat, getAiSettings, saveAiSettings } from "../lib/ai.js";
 import { getStorageSettings, normalizePrefix, s3ConfigFrom, saveStorageSettings, testBucket } from "../lib/storage.js";
 
 const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
@@ -45,6 +46,17 @@ const storageInput = z
     useForBackups: z.boolean(),
   })
   .partial();
+const aiInput = z
+  .object({
+    enabled: z.boolean(),
+    provider: z.enum(["ollama", "openai", "anthropic", "custom"]),
+    baseUrl: z.string().trim().url().max(500),
+    model: z.string().trim().min(1).max(200),
+    /** Empty = keep the stored key. */
+    apiKey: z.string().max(500),
+  })
+  .partial();
+
 const CONFIRM = "RESTORE";
 
 async function restore(c: { json: (b: unknown, s?: 400) => Response }, data: Buffer) {
@@ -166,6 +178,34 @@ export const adminRoutes = new Hono<AppEnv>()
     const saved = await saveStorageSettings(body);
     const { secretSealed, ...rest } = saved;
     return c.json({ ...rest, hasSecret: !!openSecret(secretSealed) });
+  })
+
+  /* ----- AI assistant ----- */
+  .get("/admin/ai", async (c) => {
+    const { apiKeySealed, ...rest } = await getAiSettings();
+    return c.json({ ...rest, hasKey: !!openSecret(apiKeySealed), presets: AI_PRESETS });
+  })
+  .post("/admin/ai/test", async (c) => {
+    const body = aiInput.parse(await c.req.json());
+    const current = await getAiSettings();
+    const cfg = { ...current, ...body, baseUrl: (body.baseUrl ?? current.baseUrl).replace(/\/+$/, "") };
+    try {
+      let out = "";
+      for await (const t of chat(cfg, [{ role: "user", content: "Reply with the single word: OK" }], {
+        apiKey: body.apiKey || undefined,
+        maxTokens: 10,
+        signal: AbortSignal.timeout(30_000),
+      }))
+        out += t;
+      return c.json({ ok: true, reply: out.trim().slice(0, 100) });
+    } catch (e) {
+      return c.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 400);
+    }
+  })
+  .put("/admin/ai", async (c) => {
+    const body = aiInput.parse(await c.req.json());
+    const { apiKeySealed, ...rest } = await saveAiSettings(body);
+    return c.json({ ...rest, hasKey: !!openSecret(apiKeySealed) });
   })
 
   /** Restore from a file uploaded from the browser (raw body). */

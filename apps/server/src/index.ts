@@ -24,6 +24,8 @@ import { publicRoutes } from "./routes/public.js";
 import { sharingRoutes } from "./routes/sharing.js";
 import { tokenRoutes } from "./routes/tokens.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { aiRoutes } from "./routes/ai.js";
+import { aiReady, getAiSettings } from "./lib/ai.js";
 import { versionRoutes } from "./routes/versions.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 
@@ -76,6 +78,7 @@ app.get("/api/config", async (c) =>
     allowSignup: env.ALLOW_SIGNUP,
     oidc: oidcEnabled ? { name: env.OIDC_PROVIDER_NAME } : null,
     epoch: await getEpoch(),
+    ai: aiReady(await getAiSettings()),
   }),
 );
 
@@ -95,6 +98,7 @@ const api = new Hono<AppEnv>()
   .route("/", adminRoutes)
   .route("/", fileUploadRoutes)
   .route("/", webhookRoutes)
+  .route("/", aiRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
