@@ -103,3 +103,100 @@ export type InviteInfo = {
   inviter: string | null;
   email: string | null;
 };
+
+/* ---------- Databases ---------- */
+
+export type PropertyType =
+  | "text"
+  | "number"
+  | "select"
+  | "multi_select"
+  | "status"
+  | "date"
+  | "checkbox"
+  | "url"
+  | "email"
+  | "phone"
+  | "person"
+  | "relation"
+  | "rollup"
+  | "created_time"
+  | "last_edited_time";
+
+export type TagColor = "gray" | "amber" | "green" | "blue" | "rose";
+export type SelectOption = { id: string; name: string; color: TagColor };
+
+export type Property = {
+  id: string;
+  databaseId: string;
+  name: string;
+  type: PropertyType;
+  config: {
+    options?: SelectOption[];
+    format?: "number" | "percent" | "dollar";
+    databaseId?: string;
+    pairedPropertyId?: string | null;
+    relationPropertyId?: string;
+    targetPropertyId?: string;
+    fn?: RollupFn;
+    [k: string]: unknown;
+  };
+  position: string;
+};
+
+export type RollupFn =
+  | "count"
+  | "count_values"
+  | "count_unique"
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+  | "show_original"
+  | "percent_checked"
+  | "earliest"
+  | "latest";
+
+export type Filter = { propertyId: string; op: string; value?: unknown };
+export type Sort = { propertyId: string; dir: "asc" | "desc" };
+export type ViewType = "table" | "board" | "list" | "gallery";
+export type ViewConfig = {
+  filters?: Filter[];
+  filterMode?: "and" | "or";
+  sorts?: Sort[];
+  groupBy?: string | null;
+  hidden?: string[];
+};
+export type View = {
+  id: string;
+  databaseId: string;
+  name: string;
+  type: ViewType;
+  config: ViewConfig;
+  position: string;
+};
+
+export type LinkedRow = { id: string; title: string; icon: string | null };
+
+export type Row = {
+  id: string;
+  databaseId: string;
+  title: string;
+  icon: string | null;
+  position: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  props: Record<string, unknown>;
+};
+
+export type DatabaseData = {
+  database: { id: string; workspaceId: string; title: string; icon: string | null };
+  role: Role;
+  properties: Property[];
+  views: View[];
+  rows: Row[];
+  people: { id: string; name: string; email: string }[];
+  related: { id: string; title: string; icon: string | null }[];
+};

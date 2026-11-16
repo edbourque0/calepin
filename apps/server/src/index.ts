@@ -12,6 +12,7 @@ import { client, runMigrations } from "./db/index.js";
 import { env, oidcEnabled } from "./env.js";
 import { type AppEnv, requireUser } from "./http.js";
 import { mcpRoutes } from "./mcp.js";
+import { databaseRoutes } from "./routes/databases.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { pageRoutes } from "./routes/pages.js";
 import { publicRoutes } from "./routes/public.js";
@@ -46,6 +47,7 @@ const api = new Hono<AppEnv>()
   .route("/", workspaceRoutes)
   .route("/", pageRoutes)
   .route("/", sharingRoutes)
+  .route("/", databaseRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

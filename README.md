@@ -14,6 +14,10 @@ A self-hosted notebook: pages, live collaboration, offline-ready PWA — with da
 - **Workspaces & members**: several workspaces per person, owner / editor / viewer roles, invitations by email or link
 - **Page sharing**: share a page (and its subpages) with people outside the workspace, read-only or editable
 - **Publish to the web**: read-only public pages at `/s/<slug>`, rendered on the server
+- **Databases**: full-page databases with typed properties (text, number, select, multi-select, status, date,
+  checkbox, person, URL, email, phone, created/edited time), two-way **relations** and **rollups**
+  (count, sum, average, min/max, % checked, earliest/latest…). Table and board (Kanban) views with filters, sorts,
+  grouping and hidden properties. Every row is a page with its own content.
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
 - **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes
 - **Installable PWA**, light/dark/system themes (`Ctrl/⌘ ⇧ L`), French and English
@@ -65,7 +69,8 @@ Create a token in **Settings → API tokens**, then add the server to your clien
 ```
 
 Tools: `list_workspaces`, `search_pages`, `list_pages`, `get_page` (Markdown), `create_page`, `append_to_page`,
-`replace_page_content`, `update_page` (rename, icon, move), `delete_page` (to the trash). Agents act with your
+`replace_page_content`, `update_page` (rename, icon, move), `delete_page` (to the trash), and for databases
+`get_database` (schema + rows as a Markdown table), `create_database`, `add_database_row`, `update_database_row`. Agents act with your
 permissions, and their edits appear live to anyone viewing the page.
 
 The same tokens work for the REST API (`Authorization: Bearer cp_…` on any `/api` route).
@@ -91,13 +96,16 @@ After changing `apps/server/src/db/schema.ts`, run `pnpm db:generate` to create 
 
 - Each page is a Yjs document (`blocks` XML fragment + `title` text). Hocuspocus persists the full state to `pages.yjs_state` and a plain-text projection to `pages.content_text`, which feeds the `search` tsvector.
 - Page order uses fractional indexing (`position`, sorted with `COLLATE "C"`), so moves never rewrite siblings.
-- Structured data (databases, coming in Phase 3) will live in Postgres, not in Yjs.
+- Structured data lives in Postgres, not in Yjs: a database is a page (`type = 'database'`) with `db_properties`
+  and `db_views`; each row is a page (`type = 'row'`) whose values sit in `pages.props` (JSONB). Relations are rows
+  in `db_relations` (one per direction for two-way relations); rollups are computed when rows are read. Rich text
+  (titles and row content) stays in Yjs.
 
 ## Roadmap
 
 1. ~~Foundation — auth, page tree, collaborative editor, search, Docker image~~
 2. ~~Collaboration — sharing and permissions, multiple users, public pages, MCP server~~
-3. Databases — properties, table/board views, relations, rollups
+3. ~~Databases — properties, table/board views, relations, rollups~~
 4. Safety — version history, built-in backup/restore, export
 5. Import & mobile polish — Notion import, Markdown export
-6. Extras — formulas, timeline view, API/webhooks, AI
+6. Extras — formulas, calendar/gallery/timeline views, inline databases, API/webhooks, AI

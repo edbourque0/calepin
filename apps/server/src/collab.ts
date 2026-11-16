@@ -9,7 +9,7 @@ import { db } from "./db/index.js";
 import { pages, type WorkspaceRole } from "./db/schema.js";
 import { env } from "./env.js";
 import { canEdit, getPageAccess } from "./lib/workspaces.js";
-import { emitWorkspace } from "./lib/events.js";
+import { emitDatabase, emitWorkspace } from "./lib/events.js";
 import { extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
 
 type Context = { userId: string; role: WorkspaceRole };
@@ -51,7 +51,7 @@ export const hocuspocus = new Hocuspocus<Context>({
     const state = Y.encodeStateAsUpdate(document);
     const title = getTitle(document);
     const [before] = await db
-      .select({ title: pages.title, workspaceId: pages.workspaceId })
+      .select({ title: pages.title, workspaceId: pages.workspaceId, type: pages.type, parentId: pages.parentId })
       .from(pages)
       .where(eq(pages.id, documentName));
     if (!before) return;
@@ -65,7 +65,10 @@ export const hocuspocus = new Hocuspocus<Context>({
         updatedBy: lastContext?.userId && lastContext.userId !== "system" ? lastContext.userId : undefined,
       })
       .where(eq(pages.id, documentName));
-    if (before.title !== title) emitWorkspace(before.workspaceId);
+    if (before.title !== title) {
+      if (before.type === "row" && before.parentId) emitDatabase(before.workspaceId, before.parentId);
+      else emitWorkspace(before.workspaceId);
+    }
   },
 });
 

@@ -4,6 +4,7 @@ import {
   boolean,
   customType,
   index,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -128,6 +129,8 @@ export const pages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** Database rows: property values keyed by property id (relations live in db_relations). */
+    props: jsonb("props").$type<Record<string, unknown>>().notNull().default({}),
     /** Set when the page is published to the web at /s/<publicSlug>. */
     publicSlug: text("public_slug").unique(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
@@ -201,4 +204,77 @@ export const apiTokens = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   },
   (t) => [index("api_tokens_user_idx").on(t.userId)],
+);
+
+/* ---------- Databases ---------- */
+
+export type PropertyType =
+  | "text"
+  | "number"
+  | "select"
+  | "multi_select"
+  | "status"
+  | "date"
+  | "checkbox"
+  | "url"
+  | "email"
+  | "phone"
+  | "person"
+  | "relation"
+  | "rollup"
+  | "created_time"
+  | "last_edited_time";
+
+/** Columns of a database (a page with type "database"). The title column is the row page's title. */
+export const dbProperties = pgTable(
+  "db_properties",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    databaseId: uuid("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").$type<PropertyType>().notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+    position: text("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("db_properties_database_idx").on(t.databaseId)],
+);
+
+/** Relation links. Two-way relations store one link per direction, each under its own property. */
+export const dbRelations = pgTable(
+  "db_relations",
+  {
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => dbProperties.id, { onDelete: "cascade" }),
+    fromRow: uuid("from_row")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    toRow: uuid("to_row")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    position: text("position").notNull().default("a0"),
+  },
+  (t) => [primaryKey({ columns: [t.propertyId, t.fromRow, t.toRow] }), index("db_relations_from_idx").on(t.fromRow)],
+);
+
+export type ViewType = "table" | "board" | "list" | "gallery";
+
+export const dbViews = pgTable(
+  "db_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    databaseId: uuid("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").$type<ViewType>().notNull().default("table"),
+    /** { filters, sorts, groupBy, hidden, widths } */
+    config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+    position: text("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("db_views_database_idx").on(t.databaseId)],
 );

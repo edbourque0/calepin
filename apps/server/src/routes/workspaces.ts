@@ -153,14 +153,19 @@ export const workspaceRoutes = new Hono<AppEnv>()
     if (!(await getMembership(c.var.user.id, wid))) return c.json({ error: "Not found" }, 404);
     c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
-      let pending = false;
-      const off = onWorkspace(wid, () => {
-        // Coalesce bursts (e.g. many moves) into one message.
-        if (pending) return;
-        pending = true;
+      // Coalesce bursts (e.g. many moves or cell edits) into one message per key.
+      const pending = new Set<string>();
+      const off = onWorkspace(wid, (e) => {
+        const key = e.type === "database" ? `database:${e.id}` : "pages";
+        if (pending.has(key)) return;
+        pending.add(key);
         setTimeout(() => {
-          pending = false;
-          stream.writeSSE({ event: "pages", data: "{}" }).catch(() => {});
+          pending.delete(key);
+          const msg =
+            e.type === "database"
+              ? { event: "database", data: JSON.stringify({ id: e.id }) }
+              : { event: "pages", data: "{}" };
+          stream.writeSSE(msg).catch(() => {});
         }, 150);
       });
       stream.onAbort(() => {

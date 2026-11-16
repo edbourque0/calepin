@@ -8,6 +8,8 @@ import type { EditorHandle } from "@/components/Editor";
 
 const Editor = lazy(() => import("@/components/Editor").then((m) => ({ default: m.Editor })));
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { DatabaseView } from "@/components/database/DatabaseView";
+import { RowProperties } from "@/components/database/RowProperties";
 import { SharePanel } from "@/components/SharePanel";
 import { Button, Popover, Spinner } from "@/components/ui";
 import { type Collab, type SyncStatus, TITLE_TEXT, usePresence, useCollab } from "@/lib/collab";
@@ -83,6 +85,7 @@ export function PageView() {
 function CollabPage({ resolved }: { resolved: Resolved }) {
   const { t } = useI18n();
   const pageId = resolved.page.id;
+  const isDatabase = resolved.page.type === "database";
   const { collab, status, readOnly, denied, ready } = useCollab(pageId);
   const editorRef = useRef<EditorHandle>(null);
   const wantFocus = useRef(false);
@@ -101,15 +104,31 @@ function CollabPage({ resolved }: { resolved: Resolved }) {
   return (
     <>
       <PageTopBar resolved={resolved} status={status} readOnly={readOnly} collab={collab} />
-      <article className="mx-auto w-full max-w-[816px] px-6 pt-10 pb-[40vh] md:px-12 md:pt-16">
+      <article
+        className={cn(
+          "mx-auto w-full px-6 pt-10 md:px-12 md:pt-16",
+          isDatabase ? "max-w-[1240px] pb-24" : "max-w-[816px] pb-[40vh]",
+        )}
+      >
         {collab && ready ? (
           <>
             <PageHeader page={resolved.page} doc={collab.doc} readOnly={readOnly} onEnter={focusEditor} />
-            <div className="-mx-[54px] mt-3 max-md:-mx-6">
-              <Suspense fallback={<div className="h-6" />}>
-                <Editor ref={editorRef} collab={collab} readOnly={readOnly} onReady={onEditorReady} />
-              </Suspense>
-            </div>
+            {isDatabase ? (
+              <div className="mt-6">
+                <DatabaseView databaseId={pageId} />
+              </div>
+            ) : (
+              <>
+                {resolved.page.type === "row" && resolved.page.parentId && (
+                  <RowProperties databaseId={resolved.page.parentId} rowId={pageId} />
+                )}
+                <div className="-mx-[54px] mt-3 max-md:-mx-6">
+                  <Suspense fallback={<div className="h-6" />}>
+                    <Editor ref={editorRef} collab={collab} readOnly={readOnly} onReady={onEditorReady} />
+                  </Suspense>
+                </div>
+              </>
+            )}
           </>
         ) : (
           <div className="space-y-4 pt-4">

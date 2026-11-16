@@ -137,6 +137,43 @@ body {
   }
 }
 
+/* ---------- Database tags (design system Tag) ---------- */
+@layer components {
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 20px;
+    padding: 0 6px;
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tag-gray {
+    background: var(--tag-gray);
+    color: var(--tag-gray-foreground);
+  }
+  .tag-amber {
+    background: var(--tag-amber);
+    color: var(--tag-amber-foreground);
+  }
+  .tag-green {
+    background: var(--tag-green);
+    color: var(--tag-green-foreground);
+  }
+  .tag-blue {
+    background: var(--tag-blue);
+    color: var(--tag-blue-foreground);
+  }
+  .tag-rose {
+    background: var(--tag-rose);
+    color: var(--tag-rose-foreground);
+  }
+}
+
 /* ---------- BlockNote, themed by the tokens ---------- */
 .bn-container.calepin-editor {
   --bn-font-family: var(--font-sans);

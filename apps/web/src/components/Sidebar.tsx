@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsLeft, Home, LogOut, Plus, Search, Settings, Trash2 } from "lucide-react";
+import { ChevronsLeft, FileText, Home, LogOut, Plus, Search, Settings, Table2, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { authClient } from "@/lib/auth-client";
 import { useI18n } from "@/lib/i18n";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePageActions, useSharedPages, useWorkspace } from "@/lib/workspace";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { PageTree } from "./PageTree";
-import { Avatar, IconButton, Kbd } from "./ui";
+import { Avatar, IconButton, Kbd, MenuItem, Popover } from "./ui";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -36,6 +37,14 @@ export function Sidebar({
     navigate(`/p/${page.id}`);
     onNavigate();
   };
+  const newDatabase = async () => {
+    setNewMenu(false);
+    const page = await create.mutateAsync({ database: { tags: t("db.defaultTags"), view: t("db.defaultView") } });
+    navigate(`/p/${page.id}`);
+    onNavigate();
+  };
+  const newRef = useRef<HTMLButtonElement>(null);
+  const [newMenu, setNewMenu] = useState(false);
 
   const signOut = async () => {
     await authClient.signOut();
@@ -70,9 +79,25 @@ export function Sidebar({
         <div className="flex items-center justify-between pr-0 pb-1 pl-2">
           <span className="caps-label">{t("nav.pages")}</span>
           {canEdit && (
-            <IconButton label={t("nav.newPage")} onClick={newPage} className="size-6">
-              <Plus className="size-4" />
-            </IconButton>
+            <>
+              <IconButton ref={newRef} label={t("nav.newPage")} onClick={() => setNewMenu(true)} className="size-6">
+                <Plus className="size-4" />
+              </IconButton>
+              <Popover anchor={newRef} open={newMenu} onClose={() => setNewMenu(false)} align="end" className="w-56">
+                <MenuItem
+                  icon={<FileText className="size-4" />}
+                  onClick={() => {
+                    setNewMenu(false);
+                    newPage();
+                  }}
+                >
+                  {t("db.createPage")}
+                </MenuItem>
+                <MenuItem icon={<Table2 className="size-4" />} onClick={newDatabase}>
+                  {t("db.database")}
+                </MenuItem>
+              </Popover>
+            </>
           )}
         </div>
         <PageTree onNavigate={onNavigate} />

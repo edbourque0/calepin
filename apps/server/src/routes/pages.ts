@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
@@ -61,7 +61,7 @@ export const pageRoutes = new Hono<AppEnv>()
     const rows = await db
       .select(pageSummary)
       .from(pages)
-      .where(and(eq(pages.workspaceId, wid), isNull(pages.deletedAt)));
+      .where(and(eq(pages.workspaceId, wid), isNull(pages.deletedAt), ne(pages.type, "row")));
     return c.json(rows);
   })
 
@@ -114,7 +114,7 @@ export const pageRoutes = new Hono<AppEnv>()
       const recent = await db
         .select(pageSummary)
         .from(pages)
-        .where(and(eq(pages.workspaceId, wid), isNull(pages.deletedAt)))
+        .where(and(eq(pages.workspaceId, wid), isNull(pages.deletedAt), ne(pages.type, "row")))
         .orderBy(desc(pages.updatedAt))
         .limit(8);
       return c.json(recent.map((p) => ({ ...p, snippet: "" })));
@@ -136,7 +136,7 @@ export const pageRoutes = new Hono<AppEnv>()
       tree AS (
         SELECT p.id, true AS is_root, r.role FROM pages p JOIN roots r ON r.id = p.id
         UNION ALL
-        SELECT p.id, false, t.role FROM pages p JOIN tree t ON p.parent_id = t.id WHERE p.deleted_at IS NULL
+        SELECT p.id, false, t.role FROM pages p JOIN tree t ON p.parent_id = t.id WHERE p.deleted_at IS NULL AND p.type <> 'row'
       )
       SELECT DISTINCT ON (p.id) p.id, p.workspace_id AS "workspaceId",
         CASE WHEN t.is_root THEN NULL ELSE p.parent_id END AS "parentId",

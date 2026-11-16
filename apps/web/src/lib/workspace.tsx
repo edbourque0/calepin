@@ -62,6 +62,15 @@ export function useWorkspaceEvents() {
       qc.invalidateQueries({ queryKey: pagesKey(workspace.id) });
       qc.invalidateQueries({ queryKey: ["page"] });
     });
+    source.addEventListener("database", (e) => {
+      try {
+        const { id } = JSON.parse((e as MessageEvent).data) as { id: string };
+        qc.invalidateQueries({ queryKey: ["db", id] });
+        qc.invalidateQueries({ queryKey: ["db-options", id] });
+      } catch {
+        /* ignore malformed events */
+      }
+    });
     return () => source.close();
   }, [workspace.id, qc]);
 }
@@ -132,11 +141,24 @@ export function usePageActions() {
   };
 
   const create = useMutation({
-    mutationFn: (body: { parentId?: string | null; title?: string; workspaceId?: string }) =>
-      api.post<PageSummary>(`/workspaces/${body.workspaceId ?? workspace.id}/pages`, {
-        parentId: body.parentId,
-        title: body.title,
-      }),
+    mutationFn: (body: {
+      parentId?: string | null;
+      title?: string;
+      workspaceId?: string;
+      /** Create a database instead of a page: default property and view names. */
+      database?: { tags: string; view: string };
+    }) =>
+      body.database
+        ? api.post<PageSummary>(`/workspaces/${body.workspaceId ?? workspace.id}/databases`, {
+            parentId: body.parentId,
+            title: body.title ?? "",
+            viewName: body.database.view,
+            properties: [{ name: body.database.tags, type: "multi_select" }],
+          })
+        : api.post<PageSummary>(`/workspaces/${body.workspaceId ?? workspace.id}/pages`, {
+            parentId: body.parentId,
+            title: body.title,
+          }),
     onSuccess: (page) => {
       if (page.workspaceId === workspace.id) qc.setQueryData<PageSummary[]>(key, (old) => [...(old ?? []), page]);
       else qc.invalidateQueries({ queryKey: sharedKey });

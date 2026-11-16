@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, Plus, Table2, Trash2 } from "lucide-react";
 import { type DragEvent, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import type { PageSummary, SharedPage } from "@/lib/api";
@@ -187,6 +187,8 @@ function TreeNode(props: NodeProps) {
               <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
                 {page.icon ? (
                   <span className="text-[14px] leading-none">{page.icon}</span>
+                ) : page.type === "database" ? (
+                  <Table2 className="size-4" />
                 ) : (
                   <FileText className="size-4" />
                 )}
