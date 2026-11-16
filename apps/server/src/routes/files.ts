@@ -56,30 +56,50 @@ export const fileUploadRoutes = new Hono<AppEnv>().post("/pages/:id/files", asyn
   if (!data.length) return c.json({ error: "Empty file" }, 400);
   if (data.length > max) return c.json({ error: `Files are limited to ${env.MAX_UPLOAD_MB} MB` }, 413);
 
-  const name = safeName(decodeURIComponent(c.req.header("x-file-name") ?? "file"));
   const mime =
     (c.req.header("content-type") ?? "application/octet-stream").split(";")[0]!.trim() || "application/octet-stream";
-  const id = crypto.randomUUID();
-  let stored;
   try {
-    stored = await storeFile(`${access.workspaceId}/${id}/${name}`, data, mime);
+    const file = await saveUpload({
+      workspaceId: access.workspaceId,
+      pageId,
+      userId: c.var.user.id,
+      name: decodeURIComponent(c.req.header("x-file-name") ?? "file"),
+      mime,
+      data,
+    });
+    return c.json(file, 201);
   } catch (e) {
     console.error("[files] upload failed", e);
     return c.json({ error: e instanceof Error ? e.message : "Upload failed" }, 502);
   }
+});
+
+/** Stores an uploaded file for a page (disk or S3) and records it. Returns its in-app URL. */
+export async function saveUpload(input: {
+  workspaceId: string;
+  pageId: string;
+  userId: string;
+  name: string;
+  mime: string;
+  data: Uint8Array;
+}) {
+  const name = safeName(input.name);
+  const mime = input.mime || "application/octet-stream";
+  const id = crypto.randomUUID();
+  const stored = await storeFile(`${input.workspaceId}/${id}/${name}`, input.data, mime);
   await db.insert(files).values({
     id,
-    workspaceId: access.workspaceId,
-    pageId,
-    uploadedBy: c.var.user.id,
+    workspaceId: input.workspaceId,
+    pageId: input.pageId,
+    uploadedBy: input.userId,
     name,
     mime,
-    size: data.length,
+    size: input.data.length,
     storage: stored.storage,
     key: stored.key,
   });
-  return c.json({ id, url: `/api/files/${id}/${encodeURIComponent(name)}`, name, mime, size: data.length }, 201);
-});
+  return { id, url: `/api/files/${id}/${encodeURIComponent(name)}`, name, mime, size: input.data.length };
+}
 
 /* ---------- Download / display (proxied: the bucket stays private) ---------- */
 

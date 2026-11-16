@@ -134,10 +134,21 @@ Create a token in **Settings → API tokens**, then add the server to your clien
 }
 ```
 
-Tools: `list_workspaces`, `search_pages`, `list_pages`, `get_page` (Markdown), `create_page`, `append_to_page`,
-`replace_page_content`, `update_page` (rename, icon, move), `delete_page` (to the trash), and for databases
-`get_database` (schema + rows as a Markdown table), `create_database`, `add_database_row`, `update_database_row`. Agents act with your
-permissions, and their edits appear live to anyone viewing the page.
+Tools:
+
+- **Pages**: `list_workspaces`, `search_pages`, `list_pages`, `get_page` (Markdown), `create_page`,
+  `append_to_page`, `replace_page_content`, `update_page` (rename, icon — emoji or `lucide:Name:color` — move),
+  `delete_page` (to the trash)
+- **Files**: `upload_file` — an image or file as base64 or from a URL, added to the page as an image / video /
+  audio / file block (or just uploaded, returning a Markdown snippet)
+- **Databases**: `get_database` (schema, views and rows as a Markdown table), `create_database` (optionally
+  embedded in its parent page), `add_database_row`, `update_database_row`, `add_database_property` (any type,
+  including formulas, relations and rollups), `update_database_property` (rename, formula, new options),
+  `add_database_view` (table, board, gallery, calendar, timeline)
+- **Webhooks** (workspace owners): `list_webhooks`, `create_webhook`, `delete_webhook`
+
+Agents act with your permissions, and their edits appear live to anyone viewing the page. Before an agent rewrites
+a page, Calepin keeps a version of it.
 
 The same tokens work for the REST API (`Authorization: Bearer cp_…` on any `/api` route).
 

@@ -99,3 +99,18 @@ export async function writeMarkdown(doc: Y.Doc, markdown: string, mode: "append"
 export function copyBlocks(from: Y.Doc, to: Y.Doc) {
   editor().blocksToYXmlFragment(docToBlocks(from), to.getXmlFragment(BLOCKS_FRAGMENT));
 }
+
+/** Appends blocks (BlockNote JSON) at the end of the document. */
+export function appendBlocks(doc: Y.Doc, blocks: Record<string, unknown>[]) {
+  const existing = docToBlocks(doc);
+  const kept = existing.filter(
+    (b, i) =>
+      !(
+        existing.length === 1 &&
+        i === 0 &&
+        b.type === "paragraph" &&
+        (!b.content || (Array.isArray(b.content) && b.content.length === 0))
+      ),
+  );
+  editor().blocksToYXmlFragment([...kept, ...blocks] as never, doc.getXmlFragment(BLOCKS_FRAGMENT));
+}

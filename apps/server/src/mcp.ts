@@ -4,7 +4,16 @@ import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "./db/index.js";
-import { pages, type PropertyType, workspaceMembers, workspaces } from "./db/schema.js";
+import {
+  dbProperties,
+  dbViews,
+  pages,
+  type PropertyType,
+  type WebhookEvent,
+  webhooks,
+  workspaceMembers,
+  workspaces,
+} from "./db/schema.js";
 import { env } from "./env.js";
 import { resolveUser } from "./http.js";
 import {
@@ -28,12 +37,56 @@ import {
   PROPERTY_TYPES,
   type Property,
   updateRowValues,
+  checkExpression,
+  createProperty,
+  nextViewPosition,
+  TAG_COLORS,
 } from "./lib/database.js";
+import { appendBlocks } from "./lib/blocks.js";
+import { sealSecret } from "./lib/secrets.js";
+import { randomString } from "./lib/tokens.js";
+import { resetWebhookCache, WEBHOOK_EVENTS } from "./lib/webhooks.js";
+import { saveUpload } from "./routes/files.js";
 import { emitDatabase } from "./lib/events.js";
 import type { AppUser } from "./lib/tokens.js";
 import { canEdit, getMembership, getPageAccess } from "./lib/workspaces.js";
 import { searchPages } from "./routes/pages.js";
 import { iconPrefix } from "./lib/icons.js";
+
+const MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+  pdf: "application/pdf",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  json: "application/json",
+  zip: "application/zip",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+const guessMime = (name: string) => MIME[name.split(".").pop()?.toLowerCase() ?? ""];
+/** Recognises common image formats from their first bytes. */
+function sniffMime(d: Uint8Array) {
+  if (d[0] === 0x89 && d[1] === 0x50 && d[2] === 0x4e && d[3] === 0x47) return "image/png";
+  if (d[0] === 0xff && d[1] === 0xd8) return "image/jpeg";
+  if (d[0] === 0x47 && d[1] === 0x49 && d[2] === 0x46) return "image/gif";
+  if (d[8] === 0x57 && d[9] === 0x45 && d[10] === 0x42 && d[11] === 0x50) return "image/webp";
+  if (d[0] === 0x25 && d[1] === 0x50 && d[2] === 0x44 && d[3] === 0x46) return "application/pdf";
+  return undefined;
+}
 
 const pageUrl = (id: string) => `${env.PUBLIC_URL.replace(/\/$/, "")}/p/${id}`;
 
@@ -76,12 +129,15 @@ async function requirePage(user: AppUser, pageId: string, edit = false) {
 /** Builds an MCP server whose tools act as `user`, with the same permissions as in the app. */
 function buildServer(user: AppUser) {
   const server = new McpServer(
-    { name: "calepin", version: "0.3.0" },
+    { name: "calepin", version: "0.4.0" },
     {
       instructions:
         "Calepin is the user's self-hosted notebook. Pages are organised in a tree inside workspaces. " +
         "Page content is read and written as Markdown. Databases are tables of row pages with typed properties: " +
-        "read them with get_database, then use add_database_row / update_database_row. " +
+        "read them with get_database, then use add_database_row / update_database_row; shape them with " +
+        "add_database_property (including formulas, relations, rollups) and add_database_view (table, board, gallery, " +
+        "calendar, timeline). create_database with embed: true shows the database inside its parent page. " +
+        "upload_file adds images and files to a page. " +
         "Use search_pages to find pages before reading or editing them.",
     },
   );
@@ -361,12 +417,14 @@ function buildServer(user: AppUser) {
       title: "Create a database",
       description:
         "Creates a database (a table of pages with typed properties). Types: text, number, select, multi_select, " +
-        "status, date, checkbox, url, email, phone, person, formula, created_time, last_edited_time. Formulas take an " +
+        "status, date, checkbox, url, email, phone, person, formula, created_time, last_edited_time. With parent_id and " +
+        "embed: true, the database also appears inside the parent page (an inline database). Formulas take an " +
         'expression such as `prop("Price") * prop("Qty")` or `if(prop("Done"), "✓", "")`. Relations and rollups ' +
         "are added from the app.",
       inputSchema: {
         title: z.string().min(1).max(500),
         parent_id: z.string().uuid().optional(),
+        embed: z.boolean().optional().describe("Show the database inside its parent page (needs parent_id)"),
         workspace_id: z.string().uuid().optional(),
         icon: z
           .string()
@@ -390,7 +448,8 @@ function buildServer(user: AppUser) {
           .optional(),
       },
     },
-    guard(async ({ title, parent_id, workspace_id, icon, properties }) => {
+    guard(async ({ title, parent_id, workspace_id, icon, properties, embed }) => {
+      if (embed && !parent_id) return fail("embed needs parent_id: the page to show the database in.");
       let wid: string;
       if (parent_id) wid = (await requirePage(user, parent_id, true)).workspaceId;
       else {
@@ -422,7 +481,16 @@ function buildServer(user: AppUser) {
               : undefined,
         })),
       });
-      return ok({ id: page.id, title, url: pageUrl(page.id) });
+      if (embed && parent_id)
+        await editDocument(
+          parent_id,
+          user.id,
+          (doc) => appendBlocks(doc, [{ type: "database", props: { databaseId: page.id } }]),
+          {
+            agent: true,
+          },
+        );
+      return ok({ id: page.id, title, url: pageUrl(page.id), embedded: !!embed });
     }),
   );
 
@@ -495,6 +563,411 @@ function buildServer(user: AppUser) {
     }),
   );
 
+  /* ----- Files ----- */
+
+  server.registerTool(
+    "upload_file",
+    {
+      title: "Upload an image or file to a page",
+      description:
+        "Stores an image or file in Calepin (on the server or its S3 bucket) and, by default, adds it at the end of " +
+        "the page as an image / video / audio / file block. Give the bytes as base64 (`data_base64`) or a public " +
+        "http(s) `url` Calepin will download. Returns the file's URL and a Markdown snippet (`![name](url)`) you can " +
+        "place elsewhere with replace_page_content.",
+      inputSchema: {
+        page_id: z.string().uuid().describe("Page (or database row) the file belongs to"),
+        file_name: z.string().min(1).max(200).optional().describe("Name with extension, e.g. diagram.png"),
+        data_base64: z.string().optional().describe("File content, base64-encoded (a data: URL also works)"),
+        url: z.string().url().optional().describe("Public http(s) URL to download the file from"),
+        mime_type: z.string().max(100).optional().describe("e.g. image/png; guessed from the name or the download"),
+        caption: z.string().max(500).optional().describe("Caption shown under an image"),
+        insert: z
+          .enum(["end", "none"])
+          .optional()
+          .describe('"end" (default) adds a block at the end of the page; "none" only uploads'),
+      },
+    },
+    guard(async ({ page_id, file_name, data_base64, url, mime_type, caption, insert }) => {
+      const access = await requirePage(user, page_id, true);
+      if (!data_base64 === !url) return fail("Give either data_base64 or url.");
+      const max = env.MAX_UPLOAD_MB * 1024 * 1024;
+      let data: Uint8Array;
+      let mime = mime_type ?? "";
+      let name = file_name ?? "";
+      if (data_base64) {
+        const m = data_base64.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+        if (m && !mime) mime = m[1] ?? "";
+        data = new Uint8Array(Buffer.from(m ? m[3]! : data_base64.replace(/\s/g, ""), "base64"));
+      } else {
+        if (!/^https?:\/\//i.test(url!)) return fail("Only http(s) URLs can be downloaded.");
+        const res = await fetch(url!, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
+        if (!res.ok || !res.body) return fail(`Download failed: HTTP ${res.status}`);
+        if (Number(res.headers.get("content-length") ?? 0) > max)
+          return fail(`Files are limited to ${env.MAX_UPLOAD_MB} MB.`);
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          size += chunk.length;
+          if (size > max) return fail(`Files are limited to ${env.MAX_UPLOAD_MB} MB.`);
+          chunks.push(chunk);
+        }
+        data = new Uint8Array(Buffer.concat(chunks));
+        if (!mime) mime = (res.headers.get("content-type") ?? "").split(";")[0]!.trim();
+        if (!name) name = decodeURIComponent(new URL(res.url || url!).pathname.split("/").pop() || "");
+      }
+      if (!data.length) return fail("The file is empty.");
+      if (data.length > max) return fail(`Files are limited to ${env.MAX_UPLOAD_MB} MB.`);
+      if (!mime || mime === "application/octet-stream")
+        mime = guessMime(name) ?? sniffMime(data) ?? "application/octet-stream";
+      if (!name) name = `file.${mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "bin"}`;
+      else if (!/\.[a-z0-9]{1,6}$/i.test(name) && mime.includes("/"))
+        name += `.${mime
+          .split("/")[1]!
+          .replace("jpeg", "jpg")
+          .replace(/[^a-z0-9]/gi, "")}`;
+
+      const file = await saveUpload({
+        workspaceId: access.workspaceId,
+        pageId: page_id,
+        userId: user.id,
+        name,
+        mime,
+        data,
+      });
+      const kind = mime.startsWith("image/")
+        ? "image"
+        : mime.startsWith("video/")
+          ? "video"
+          : mime.startsWith("audio/")
+            ? "audio"
+            : "file";
+      if ((insert ?? "end") === "end") {
+        await editDocument(
+          page_id,
+          user.id,
+          (doc) =>
+            appendBlocks(doc, [
+              { type: kind, props: { url: file.url, name: file.name, ...(caption ? { caption } : {}) } },
+            ]),
+          { agent: true },
+        );
+      }
+      return ok({
+        id: file.id,
+        name: file.name,
+        mime: file.mime,
+        size: file.size,
+        url: file.url,
+        absolute_url: `${env.PUBLIC_URL.replace(/\/$/, "")}${file.url}`,
+        markdown: kind === "image" ? `![${file.name}](${file.url})` : `[${file.name}](${file.url})`,
+        inserted: (insert ?? "end") === "end",
+      });
+    }),
+  );
+
+  /* ----- Database schema and views ----- */
+
+  const resolveProperty = (properties: Property[], key: string) =>
+    properties.find((p) => p.id === key) ?? properties.find((p) => p.name.toLowerCase() === key.toLowerCase());
+
+  server.registerTool(
+    "add_database_property",
+    {
+      title: "Add a property (column) to a database",
+      description:
+        "Adds a property. Types: text, number, select, multi_select, status, date, checkbox, url, email, phone, " +
+        "person, created_time, last_edited_time, formula (needs `expression`), relation (needs " +
+        "`related_database_id`), rollup (needs `relation_property` and `rollup_function`). Formula syntax: " +
+        'prop("Name"), + - * / %, == != > <, and/or/not, if(c, a, b), concat, length, contains, round, min, max, ' +
+        'sum, now(), today(), dateAdd(d, n, "days"), dateBetween(a, b, "days"), formatDate(d, "DD/MM/YYYY")…',
+      inputSchema: {
+        database_id: z.string().uuid(),
+        name: z.string().min(1).max(100),
+        type: z.enum(PROPERTY_TYPES as [PropertyType, ...PropertyType[]]),
+        options: z
+          .array(z.string().min(1).max(100))
+          .optional()
+          .describe("Option names for select / multi_select / status"),
+        expression: z.string().max(5000).optional().describe("Formula expression"),
+        number_format: z.enum(["number", "percent", "dollar"]).optional(),
+        related_database_id: z.string().uuid().optional().describe("Relation: the database to link to"),
+        two_way: z.boolean().optional().describe("Relation: also add the reverse property there (default true)"),
+        relation_property: z.string().optional().describe("Rollup: name or id of a relation property of this database"),
+        target_property: z
+          .string()
+          .optional()
+          .describe('Rollup: property of the related database ("title" by default)'),
+        rollup_function: z
+          .enum([
+            "count",
+            "count_values",
+            "count_unique",
+            "sum",
+            "average",
+            "min",
+            "max",
+            "show_original",
+            "percent_checked",
+            "earliest",
+            "latest",
+          ])
+          .optional(),
+      },
+    },
+    guard(async (a) => {
+      const access = await requirePage(user, a.database_id, true);
+      const database = await getDatabase(a.database_id);
+      if (!database) return fail("Not a database.");
+      const config: Record<string, unknown> = {};
+      if (a.options?.length)
+        config.options = a.options.map((name, i) => ({
+          id: Math.random().toString(36).slice(2, 10),
+          name,
+          color: TAG_COLORS[i % TAG_COLORS.length],
+        }));
+      if (a.type === "formula") {
+        if (!a.expression) return fail("A formula needs an expression.");
+        config.expression = a.expression;
+      }
+      if (a.number_format) config.format = a.number_format;
+      if (a.type === "relation") {
+        if (!a.related_database_id) return fail("A relation needs related_database_id.");
+        await requirePage(user, a.related_database_id, true);
+        config.databaseId = a.related_database_id;
+        config.twoWay = a.two_way ?? true;
+      }
+      if (a.type === "rollup") {
+        const rel = resolveProperty(database.properties, a.relation_property ?? "");
+        if (!rel || rel.type !== "relation")
+          return fail("relation_property must name a relation property of this database.");
+        let target = "title";
+        if (a.target_property && a.target_property.toLowerCase() !== "title") {
+          const other = await getDatabase(rel.config.databaseId as string);
+          const t = other && resolveProperty(other.properties, a.target_property);
+          if (!t) return fail(`No property "${a.target_property}" in the related database.`);
+          target = t.id;
+        }
+        Object.assign(config, {
+          relationPropertyId: rel.id,
+          targetPropertyId: target,
+          fn: a.rollup_function ?? "count",
+        });
+      }
+      const prop = await createProperty(database.page.id, { name: a.name, type: a.type, config }, database.page.title);
+      emitDatabase(access.workspaceId, database.page.id);
+      if (prop.type === "relation" && prop.config.pairedPropertyId)
+        emitDatabase(access.workspaceId, prop.config.databaseId as string);
+      return ok({ id: prop.id, name: prop.name, type: prop.type });
+    }),
+  );
+
+  server.registerTool(
+    "update_database_property",
+    {
+      title: "Change a database property",
+      description:
+        "Renames a property, changes a formula's expression, or adds options to a select / multi_select / status.",
+      inputSchema: {
+        database_id: z.string().uuid(),
+        property: z.string().describe("Property name or id"),
+        new_name: z.string().min(1).max(100).optional(),
+        expression: z.string().max(5000).optional().describe("New formula expression"),
+        add_options: z.array(z.string().min(1).max(100)).optional(),
+      },
+    },
+    guard(async ({ database_id, property, new_name, expression, add_options }) => {
+      const access = await requirePage(user, database_id, true);
+      const database = await getDatabase(database_id);
+      if (!database) return fail("Not a database.");
+      const prop = resolveProperty(database.properties, property);
+      if (!prop) return fail(`No property "${property}".`);
+      const patch: Partial<Property> = {};
+      if (new_name) patch.name = new_name;
+      if (expression !== undefined) {
+        if (prop.type !== "formula") return fail(`"${prop.name}" is not a formula.`);
+        checkExpression(expression);
+        patch.config = { ...prop.config, expression };
+      }
+      if (add_options?.length) {
+        const current = options(prop);
+        const fresh = add_options
+          .filter((n) => !current.some((o) => o.name.toLowerCase() === n.toLowerCase()))
+          .map((name, i) => ({
+            id: Math.random().toString(36).slice(2, 10),
+            name,
+            color: TAG_COLORS[(current.length + i) % TAG_COLORS.length]!,
+          }));
+        patch.config = { ...(patch.config ?? prop.config), options: [...current, ...fresh] };
+      }
+      if (!Object.keys(patch).length) return fail("Nothing to change.");
+      await db.update(dbProperties).set(patch).where(eq(dbProperties.id, prop.id));
+      emitDatabase(access.workspaceId, database_id);
+      return ok({ id: prop.id, updated: true });
+    }),
+  );
+
+  server.registerTool(
+    "add_database_view",
+    {
+      title: "Add a view to a database",
+      description:
+        "Adds a view: table, board (Kanban, grouped by a select/status property), gallery (cards with the first " +
+        "image of each row), calendar or timeline (placed by a date property, optionally spanning to an end date).",
+      inputSchema: {
+        database_id: z.string().uuid(),
+        name: z.string().min(1).max(100),
+        type: z.enum(["table", "board", "gallery", "calendar", "timeline"]),
+        group_by: z.string().optional().describe("Board: select/status property name or id"),
+        date_property: z.string().optional().describe("Calendar/timeline: date property name or id"),
+        end_date_property: z.string().optional().describe("Calendar/timeline: end date property"),
+        sort_by: z.string().optional().describe("Property name or id to sort by"),
+        sort_direction: z.enum(["asc", "desc"]).optional(),
+        hidden_properties: z.array(z.string()).optional().describe("Property names or ids to hide"),
+      },
+    },
+    guard(async (a) => {
+      const access = await requirePage(user, a.database_id, true);
+      const database = await getDatabase(a.database_id);
+      if (!database) return fail("Not a database.");
+      const pick = (key: string | undefined, types: PropertyType[], label: string) => {
+        if (!key) return undefined;
+        const p = resolveProperty(database.properties, key);
+        if (!p || !types.includes(p.type)) throw new Error(`${label} must be a ${types.join(" / ")} property.`);
+        return p.id;
+      };
+      const config: Record<string, unknown> = {};
+      if (a.type === "board")
+        config.groupBy =
+          pick(a.group_by, ["select", "status"], "group_by") ??
+          database.properties.find((p) => p.type === "status" || p.type === "select")?.id ??
+          null;
+      const dateTypes: PropertyType[] = ["date", "created_time", "last_edited_time"];
+      if (a.type === "calendar" || a.type === "timeline") {
+        config.dateProperty =
+          pick(a.date_property, dateTypes, "date_property") ??
+          database.properties.find((p) => p.type === "date")?.id ??
+          null;
+        if (!config.dateProperty) return fail("This database has no date property: add one first.");
+        config.endDateProperty = pick(a.end_date_property, dateTypes, "end_date_property") ?? null;
+      }
+      if (a.sort_by) {
+        const sid = a.sort_by.toLowerCase() === "title" ? "title" : resolveProperty(database.properties, a.sort_by)?.id;
+        if (!sid) return fail(`No property "${a.sort_by}".`);
+        config.sorts = [{ propertyId: sid, dir: a.sort_direction ?? "asc" }];
+      }
+      if (a.hidden_properties?.length)
+        config.hidden = a.hidden_properties.map((h) => resolveProperty(database.properties, h)?.id).filter(Boolean);
+      const [view] = await db
+        .insert(dbViews)
+        .values({
+          databaseId: database.page.id,
+          name: a.name,
+          type: a.type,
+          config,
+          position: await nextViewPosition(database.page.id),
+        })
+        .returning();
+      emitDatabase(access.workspaceId, database.page.id);
+      return ok({ id: view!.id, name: view!.name, type: view!.type, url: pageUrl(database.page.id) });
+    }),
+  );
+
+  /* ----- Webhooks ----- */
+
+  const requireOwner = async (workspaceId: string) => {
+    const m = await getMembership(user.id, workspaceId);
+    if (m?.role !== "owner") throw new Error("Only workspace owners manage webhooks.");
+  };
+
+  server.registerTool(
+    "list_webhooks",
+    {
+      title: "List webhooks",
+      description: "Webhooks of a workspace (owners only), with their last delivery status.",
+      inputSchema: { workspace_id: z.string().uuid().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    guard(async ({ workspace_id }) => {
+      const wid = workspace_id ?? (await defaultWorkspace(user.id));
+      await requireOwner(wid);
+      const rows = await db
+        .select({
+          id: webhooks.id,
+          name: webhooks.name,
+          url: webhooks.url,
+          events: webhooks.events,
+          scopePageId: webhooks.scopePageId,
+          enabled: webhooks.enabled,
+          lastStatus: webhooks.lastStatus,
+          lastError: webhooks.lastError,
+          lastDeliveryAt: webhooks.lastDeliveryAt,
+        })
+        .from(webhooks)
+        .where(eq(webhooks.workspaceId, wid));
+      return ok(rows);
+    }),
+  );
+
+  server.registerTool(
+    "create_webhook",
+    {
+      title: "Create a webhook",
+      description:
+        "Calepin will POST signed JSON to the URL when pages or rows change (owners only). Events: page.created, " +
+        "page.updated, page.deleted, row.created, row.updated, row.deleted (none = all). Optionally scoped to a " +
+        "page subtree or a database. Returns the signing secret once (header X-Calepin-Signature: sha256=HMAC of the body).",
+      inputSchema: {
+        url: z.string().url(),
+        workspace_id: z.string().uuid().optional(),
+        name: z.string().max(100).optional(),
+        events: z.array(z.enum(WEBHOOK_EVENTS as [WebhookEvent, ...WebhookEvent[]])).optional(),
+        scope_page_id: z.string().uuid().optional().describe("Only this page, its subpages, or this database's rows"),
+      },
+    },
+    guard(async ({ url, workspace_id, name, events, scope_page_id }) => {
+      if (!/^https?:\/\//i.test(url)) return fail("Use an http(s) URL.");
+      const wid =
+        workspace_id ??
+        (scope_page_id ? (await requirePage(user, scope_page_id)).workspaceId : await defaultWorkspace(user.id));
+      await requireOwner(wid);
+      if (scope_page_id && (await requirePage(user, scope_page_id)).workspaceId !== wid)
+        return fail("scope_page_id is in another workspace.");
+      const secret = `whsec_${randomString(32)}`;
+      const [hook] = await db
+        .insert(webhooks)
+        .values({
+          workspaceId: wid,
+          name: name ?? "",
+          url,
+          events: events ?? [],
+          scopePageId: scope_page_id ?? null,
+          secret: sealSecret(secret),
+          createdBy: user.id,
+        })
+        .returning({ id: webhooks.id });
+      resetWebhookCache();
+      return ok({ id: hook!.id, secret, note: "Store the secret now: it is not shown again." });
+    }),
+  );
+
+  server.registerTool(
+    "delete_webhook",
+    {
+      title: "Delete a webhook",
+      description: "Removes a webhook (owners only).",
+      inputSchema: { webhook_id: z.string().uuid() },
+      annotations: { destructiveHint: true },
+    },
+    guard(async ({ webhook_id }) => {
+      const [hook] = await db.select().from(webhooks).where(eq(webhooks.id, webhook_id));
+      if (!hook) return fail("Webhook not found.");
+      await requireOwner(hook.workspaceId);
+      await db.delete(webhooks).where(eq(webhooks.id, webhook_id));
+      resetWebhookCache();
+      return ok({ deleted: true });
+    }),
+  );
+
   return server;
 }
 
@@ -542,6 +1015,19 @@ async function describeDatabase(databaseId: string, limit: number) {
     "## Properties",
     "- **Title** (`title`): the row's page title",
     ...schema,
+    "",
+    "## Views",
+    ...database.views.map((v) => {
+      const cfg = v.config as Record<string, unknown>;
+      const name = (id: unknown) => database.properties.find((p) => p.id === id)?.name;
+      const extra =
+        v.type === "board" && cfg.groupBy
+          ? ` grouped by ${name(cfg.groupBy)}`
+          : (v.type === "calendar" || v.type === "timeline") && cfg.dateProperty
+            ? ` by ${name(cfg.dateProperty)}${cfg.endDateProperty ? ` → ${name(cfg.endDateProperty)}` : ""}`
+            : "";
+      return `- ${v.name} (${v.type}${extra})`;
+    }),
     "",
     "## Rows",
     rows.length ? table.join("\n") : "_(no rows yet)_",
