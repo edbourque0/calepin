@@ -23,6 +23,7 @@ import { pageRoutes } from "./routes/pages.js";
 import { publicRoutes } from "./routes/public.js";
 import { sharingRoutes } from "./routes/sharing.js";
 import { tokenRoutes } from "./routes/tokens.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 import { versionRoutes } from "./routes/versions.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 
@@ -93,6 +94,7 @@ const api = new Hono<AppEnv>()
   .route("/", exportRoutes)
   .route("/", adminRoutes)
   .route("/", fileUploadRoutes)
+  .route("/", webhookRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

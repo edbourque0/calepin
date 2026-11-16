@@ -311,6 +311,24 @@ const FUNCTIONS: Record<string, (args: FValue[], ctx: Ctx) => FValue> = {
   weekday: ([d]) => toDate(d ?? null).getUTCDay(),
 };
 
+// Date functions on an empty value give an empty result instead of an error.
+const blank = (v: FValue | undefined) => v === null || v === undefined || v === "";
+for (const name of [
+  "date",
+  "dateadd",
+  "datesubtract",
+  "datebetween",
+  "formatdate",
+  "year",
+  "month",
+  "day",
+  "weekday",
+]) {
+  const fn = FUNCTIONS[name]!;
+  const arity = name === "datebetween" ? 2 : 1;
+  FUNCTIONS[name] = (args, ctx) => (args.slice(0, arity).some(blank) ? null : fn(args, ctx));
+}
+
 export const FUNCTION_NAMES = Object.keys(FUNCTIONS);
 
 function evaluate(node: Node, ctx: Ctx): FValue {
@@ -357,6 +375,7 @@ function evaluate(node: Node, ctx: Ctx): FValue {
         case "<":
         case ">=":
         case "<=": {
+          if (a === null || b === null) return false;
           const x = typeof a === "string" && typeof b === "string" ? a.localeCompare(b) : num(a) - num(b);
           return node.op === ">" ? x > 0 : node.op === "<" ? x < 0 : node.op === ">=" ? x >= 0 : x <= 0;
         }

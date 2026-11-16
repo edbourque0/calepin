@@ -358,3 +358,33 @@ export const files = pgTable(
   },
   (t) => [index("files_page_idx").on(t.pageId)],
 );
+
+/* ---------- Webhooks ---------- */
+
+export type WebhookEvent =
+  "page.created" | "page.updated" | "page.deleted" | "row.created" | "row.updated" | "row.deleted";
+
+/** Outgoing HTTP notifications for changes in a workspace, signed with a per-hook secret. */
+export const webhooks = pgTable(
+  "webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default(""),
+    url: text("url").notNull(),
+    secret: text("secret").notNull(),
+    /** Subscribed events; empty means all. */
+    events: jsonb("events").$type<WebhookEvent[]>().notNull().default([]),
+    /** Only changes inside this database (rows) or page subtree, when set. */
+    scopePageId: uuid("scope_page_id").references(() => pages.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastStatus: integer("last_status"),
+    lastError: text("last_error"),
+    lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
+  },
+  (t) => [index("webhooks_workspace_idx").on(t.workspaceId)],
+);

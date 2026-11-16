@@ -7,6 +7,7 @@ import { copyBlocks, docToMarkdown, writeMarkdown } from "./blocks.js";
 import { emitWorkspace } from "./events.js";
 import { positionAt, subtreeIds } from "./tree.js";
 import { snapshot, noteAuthor, versionDoc } from "./versions.js";
+import { notifyCreated, notifyDeleted } from "./webhooks.js";
 import { getTitle, TITLE_TEXT } from "./ydoc.js";
 
 export const pageSummary = {
@@ -42,6 +43,7 @@ export async function createPage(input: {
     })
     .returning(pageSummary);
   emitWorkspace(input.workspaceId);
+  notifyCreated(page!.id);
   return page!;
 }
 
@@ -54,6 +56,7 @@ export async function trashPage(pageId: string, workspaceId: string) {
     .where(and(inArray(pages.id, ids), isNull(pages.deletedAt)));
   for (const id of ids) hocuspocus.closeConnections(id);
   emitWorkspace(workspaceId);
+  notifyDeleted(ids);
   return ids;
 }
 

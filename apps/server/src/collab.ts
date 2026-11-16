@@ -11,6 +11,7 @@ import { env } from "./env.js";
 import { canEdit, getPageAccess } from "./lib/workspaces.js";
 import { emitDatabase, emitWorkspace } from "./lib/events.js";
 import { noteAuthor, snapshot } from "./lib/versions.js";
+import { notifyUpdated } from "./lib/webhooks.js";
 import { extractCover, extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
 
 type Context = { userId: string; role: WorkspaceRole };
@@ -91,6 +92,7 @@ export const hocuspocus = new Hocuspocus<Context>({
       })
       .where(eq(pages.id, documentName));
     noteAuthor(documentName, lastContext?.userId);
+    notifyUpdated(documentName);
     await snapshot(documentName, document).catch((e) => console.error("[versions]", e));
     if (before.type === "row" && before.parentId) {
       if (before.title !== title || before.cover !== cover) emitDatabase(before.workspaceId, before.parentId);

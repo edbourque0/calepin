@@ -3,6 +3,7 @@ import { generateKeyBetween } from "fractional-indexing";
 import { db } from "../db/index.js";
 import { dbProperties, dbRelations, dbViews, pages, type PropertyType, user, type ViewType } from "../db/schema.js";
 import { emitWorkspace } from "./events.js";
+import { notifyCreated, notifyUpdated } from "./webhooks.js";
 import { positionAt } from "./tree.js";
 import { compile as compileFormula, type FValue, run as runFormula } from "./formula.js";
 
@@ -691,6 +692,7 @@ export async function createDatabase(input: {
     .insert(dbViews)
     .values({ databaseId: page!.id, name: input.viewName ?? "Table", type: "table", position: "a0" });
   emitWorkspace(input.workspaceId);
+  notifyCreated(page!.id);
   return page!;
 }
 
@@ -736,6 +738,7 @@ export async function createRow(input: {
       updatedBy: input.userId,
     })
     .returning({ id: pages.id });
+  notifyCreated(row!.id);
   return row!;
 }
 
@@ -775,6 +778,7 @@ export async function updateRowValues(
     else props[prop.id] = v;
   }
   await db.update(pages).set({ props, updatedAt: new Date(), updatedBy: userId }).where(eq(pages.id, rowId));
+  notifyUpdated(rowId);
   return [...touchedDatabases];
 }
 

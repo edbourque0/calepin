@@ -57,7 +57,7 @@ async function restore(c: { json: (b: unknown, s?: 400) => Response }, data: Buf
 }
 
 export const adminRoutes = new Hono<AppEnv>()
-  .use(requireAdmin)
+  .use("/admin/*", requireAdmin)
   .onError((err, c) => {
     if (err instanceof BackupError) return c.json({ error: err.message }, 400);
     throw err;

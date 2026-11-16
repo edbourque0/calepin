@@ -11,6 +11,7 @@ import {
   Sun,
   Trash2,
   Users,
+  Webhook,
   X,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
@@ -21,15 +22,17 @@ import { type ThemePref, useTheme } from "@/lib/theme";
 import { useWorkspace } from "@/lib/workspace";
 import { BackupsTab } from "./BackupsTab";
 import { StorageTab } from "./StorageTab";
+import { WebhooksTab } from "./WebhooksTab";
 import { CopyButton, RoleSelect } from "./SharePanel";
 import { Avatar, Button, Dialog, IconButton, Spinner, Tabs } from "./ui";
 
-type Tab = "general" | "workspace" | "tokens" | "storage" | "backups";
+type Tab = "general" | "workspace" | "tokens" | "webhooks" | "storage" | "backups";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<Tab>("general");
-  const { me } = useWorkspace();
+  const { me, workspace } = useWorkspace();
+  const isOwner = me.workspaces.find((w) => w.id === workspace.id)?.role === "owner";
   useEffect(() => {
     if (open) setTab("general");
   }, [open]);
@@ -50,6 +53,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             { value: "general", label: t("settings.tabGeneral"), icon: <Settings2 /> },
             { value: "workspace", label: t("settings.tabWorkspace"), icon: <Users /> },
             { value: "tokens", label: t("settings.tabTokens"), icon: <KeyRound /> },
+            ...(isOwner ? [{ value: "webhooks" as const, label: t("webhooks.tab"), icon: <Webhook /> }] : []),
             ...(me.isAdmin
               ? [
                   { value: "storage" as const, label: t("storage.tab"), icon: <HardDrive /> },
@@ -63,6 +67,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         {tab === "general" && <GeneralTab />}
         {tab === "workspace" && <WorkspaceTab onClose={onClose} />}
         {tab === "tokens" && <TokensTab />}
+        {tab === "webhooks" && <WebhooksTab />}
         {tab === "storage" && <StorageTab />}
         {tab === "backups" && <BackupsTab />}
       </div>
