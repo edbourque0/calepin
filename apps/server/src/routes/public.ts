@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { db } from "../db/index.js";
 import { pages, user } from "../db/schema.js";
 import { docToHTML } from "../lib/blocks.js";
+import { formatValue, getDatabase, getRows, peopleNames, personIds } from "../lib/database.js";
 import { TITLE_TEXT } from "../lib/ydoc.js";
 import { signFileLinks } from "./files.js";
 
@@ -15,6 +16,8 @@ export function publicRoutes(appCss: string | null) {
   return new Hono().get("/s/:slug", async (c) => {
     const [page] = await db
       .select({
+        id: pages.id,
+        workspaceId: pages.workspaceId,
         title: pages.title,
         icon: pages.icon,
         state: pages.yjsState,
@@ -30,7 +33,7 @@ export function publicRoutes(appCss: string | null) {
     if (page.state) Y.applyUpdate(doc, page.state);
     const title = doc.getText(TITLE_TEXT).toString().trim() || page.title || "Untitled";
     // Visitors have no session: give them time-limited links to the page's files.
-    const body = signFileLinks(await docToHTML(doc));
+    const body = await embedDatabases(signFileLinks(await docToHTML(doc)), page.id, page.workspaceId);
     const updated = page.updatedAt.toISOString().slice(0, 10);
 
     c.header("Cache-Control", "public, max-age=30");
@@ -59,6 +62,42 @@ ${appCss ? `<link rel="stylesheet" href="${appCss}" />` : ""}
 </body>
 </html>`);
   });
+}
+
+/**
+ * Embedded databases become read-only tables. Only databases that live under the published page
+ * are shown, so an embed can't expose a database from elsewhere.
+ */
+async function embedDatabases(html: string, pageId: string, workspaceId: string) {
+  const re = /<p[^>]*><a href="\/p\/([0-9a-f-]{36})" data-calepin-database="[^"]*">Database<\/a><\/p>/g;
+  const ids = [...new Set([...html.matchAll(re)].map((m) => m[1]!))];
+  if (!ids.length) return html;
+  const tables = new Map<string, string>();
+  for (const id of ids) {
+    const database = await getDatabase(id);
+    if (!database || database.page.deletedAt || database.page.workspaceId !== workspaceId) continue;
+    if (database.page.parentId !== pageId) continue;
+    const view = database.views[0];
+    const hidden = new Set((view?.config.hidden as string[] | undefined) ?? []);
+    const props = database.properties.filter((p) => !hidden.has(p.id));
+    const rows = await getRows(id, database.properties);
+    const people = await peopleNames(personIds(database.properties, rows));
+    const cell = (s: string) => `<td>${escape(s)}</td>`;
+    tables.set(
+      id,
+      `<figure class="pub-db"><figcaption>${escape(`${database.page.icon ? `${database.page.icon} ` : ""}${database.page.title || "Untitled"}`)}</figcaption>
+<div class="pub-db-scroll"><table><thead><tr><th>${escape("Name")}</th>${props.map((p) => `<th>${escape(p.name)}</th>`).join("")}</tr></thead>
+<tbody>${rows
+        .map(
+          (r) =>
+            `<tr>${cell(`${r.icon ? `${r.icon} ` : ""}${r.title || "Untitled"}`)}${props
+              .map((p) => cell(formatValue(p, r.props[p.id], people).replace(/ \([0-9a-f-]{36}\)/g, "")))
+              .join("")}</tr>`,
+        )
+        .join("")}</tbody></table></div></figure>`,
+    );
+  }
+  return html.replace(re, (_all, id: string) => tables.get(id) ?? "");
 }
 
 function notFound(appCss: string | null) {
@@ -91,5 +130,9 @@ body { background: var(--background); color: var(--foreground); }
 .pub-body td, .pub-body th { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
 .pub-body input[type=checkbox] { margin-right: 8px; accent-color: var(--primary); }
 .pub-body mark { background: var(--highlight); color: inherit; }
+.pub-db { margin: 24px 0; }
+.pub-db figcaption { font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+.pub-db-scroll { overflow-x: auto; }
+.pub-db th { font-weight: 500; color: var(--muted-foreground); font-size: 13px; white-space: nowrap; }
 .pub-footer { text-align: center; padding: 0 0 48px; color: var(--muted-foreground); font-size: 13px; }
 `;

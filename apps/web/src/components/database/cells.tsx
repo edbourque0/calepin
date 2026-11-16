@@ -436,7 +436,9 @@ function OptionPicker({ prop, row, onChange, onAddOption }: EditProps) {
             {t("db.createOption", { q: q.trim() })}
           </button>
         )}
-        {!shown.length && !q.trim() && <p className="px-2 py-2 text-sm text-muted-foreground">{t("db.noOptions")}</p>}
+        {!shown.length && !q.trim() && (
+          <div className="px-2 py-2 text-sm text-muted-foreground">{t("db.noOptions")}</div>
+        )}
       </div>
     </div>
   );
@@ -481,7 +483,7 @@ function PersonPicker({
             </button>
           );
         })}
-        {!shown.length && <p className="px-2 py-2 text-sm text-muted-foreground">{t("db.noPeople")}</p>}
+        {!shown.length && <div className="px-2 py-2 text-sm text-muted-foreground">{t("db.noPeople")}</div>}
       </div>
     </div>
   );
@@ -535,7 +537,7 @@ function RelationPicker({
         className="h-10 border-b border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
       />
       <div className="max-h-64 overflow-y-auto p-1">
-        {!data && <p className="px-2 py-2 text-sm text-muted-foreground">…</p>}
+        {!data && <div className="px-2 py-2 text-sm text-muted-foreground">…</div>}
         {shown.map((r) => {
           const on = ids.includes(r.id);
           return (

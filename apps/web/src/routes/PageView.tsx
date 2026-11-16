@@ -141,6 +141,7 @@ function CollabPage({ resolved }: { resolved: Resolved }) {
                     <Editor
                       ref={editorRef}
                       pageId={pageId}
+                      workspaceId={resolved.page.workspaceId}
                       collab={collab}
                       readOnly={readOnly}
                       onReady={onEditorReady}

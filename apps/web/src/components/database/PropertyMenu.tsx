@@ -121,7 +121,7 @@ function RollupFields({
     queryFn: () => api.get<DatabaseData>(`/databases/${relation!.config.databaseId}`),
     enabled: !!relation,
   });
-  if (!relations.length) return <p className="text-[13px] text-muted-foreground">{t("type.relation")} ?</p>;
+  if (!relations.length) return <div className="text-[13px] text-muted-foreground">{t("type.relation")} ?</div>;
   return (
     <>
       <Field label={t("db.rollupRelation")}>
@@ -251,9 +251,9 @@ export function PropertyMenu({
         </Field>
       )}
       {prop.type === "relation" && (
-        <p className="text-[13px] text-muted-foreground">
+        <div className="text-[13px] text-muted-foreground">
           {t("db.relatedTo")} : <span className="text-foreground">{related?.title || t("page.untitled")}</span>
-        </p>
+        </div>
       )}
       {prop.type === "rollup" && (
         <RollupFields

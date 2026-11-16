@@ -1,5 +1,6 @@
 import {
   ArrowUpDown,
+  ArrowUpRight,
   CalendarDays,
   ChartGantt,
   ChevronDown,
@@ -14,9 +15,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { type ReactNode, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 import { Button, Popover, Spinner } from "@/components/ui";
-import type { View, ViewConfig, ViewType } from "@/lib/api";
-import { applyView, useDatabase, useDatabaseActions, valuesFromFilters } from "@/lib/database";
+import { useQueryClient } from "@tanstack/react-query";
+import { api, type DatabaseData, type View, type ViewConfig, type ViewType } from "@/lib/api";
+import { applyView, dbKey, useDatabase, useDatabaseActions, valuesFromFilters } from "@/lib/database";
 import { useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
 import { BoardView } from "./BoardView";
@@ -79,7 +82,7 @@ function ToolbarButton({
 }
 
 /** A full-page database: view tabs, toolbar and the active view. */
-export function DatabaseView({ databaseId }: { databaseId: string }) {
+export function DatabaseView({ databaseId, inline = false }: { databaseId: string; inline?: boolean }) {
   const { t } = useI18n();
   const { data, isLoading, error } = useDatabase(databaseId);
   const actions = useDatabaseActions(databaseId);
@@ -103,7 +106,10 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
         <Spinner />
       </div>
     );
-  if (error || !data || !view) return <p className="py-10 text-sm text-muted-foreground">{String(error ?? "")}</p>;
+  if (error || !data || !view)
+    return (
+      <div className="py-4 text-sm text-muted-foreground">{inline ? t("db.inlineMissing") : String(error ?? "")}</div>
+    );
 
   const canEdit = data.role !== "viewer";
   const change = (config: ViewConfig) => actions.updateView.mutate({ viewId: view.id, config });
@@ -128,6 +134,7 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {inline && <InlineTitle data={data} canEdit={canEdit} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
         <div role="tablist" className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {data.views.map((v) => {
@@ -252,7 +259,7 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
       )}
 
       {data.rows.length > 0 && rows.length === 0 && filters.length ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">{t("db.noMatch")}</p>
+        <div className="py-8 text-center text-sm text-muted-foreground">{t("db.noMatch")}</div>
       ) : view.type === "board" ? (
         <BoardView data={data} view={view} rows={rows} canEdit={canEdit} />
       ) : view.type === "gallery" ? (
@@ -270,7 +277,7 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
           onHideProperty={(id) => change({ hidden: [...(view.config.hidden ?? []), id] })}
         />
       )}
-      <p className="text-xs text-muted-foreground tabular-nums">{t("db.rows", { n: rows.length })}</p>
+      <div className="text-xs text-muted-foreground tabular-nums">{t("db.rows", { n: rows.length })}</div>
     </div>
   );
 }
@@ -324,6 +331,46 @@ function ViewMenu({
           {t("db.deleteView")}
         </button>
       )}
+    </div>
+  );
+}
+
+/** Title of an embedded database: editable in place, with a link to open it full page. */
+function InlineTitle({ data, canEdit }: { data: DatabaseData; canEdit: boolean }) {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  const [title, setTitle] = useState(data.database.title);
+  const save = async () => {
+    const next = title.trim();
+    if (next === data.database.title) return;
+    await api.patch(`/pages/${data.database.id}`, { title: next });
+    qc.invalidateQueries({ queryKey: dbKey(data.database.id) });
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      {data.database.icon ? (
+        <span className="text-lg">{data.database.icon}</span>
+      ) : (
+        <Table2 className="size-4 shrink-0 text-muted-foreground" />
+      )}
+      <input
+        value={title}
+        readOnly={!canEdit}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+        placeholder={t("page.untitled")}
+        aria-label={t("db.databaseName")}
+        className="min-w-0 flex-1 bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:text-muted-foreground"
+      />
+      <Link
+        to={`/p/${data.database.id}`}
+        title={t("db.openFullPage")}
+        aria-label={t("db.openFullPage")}
+        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <ArrowUpRight className="size-4" />
+      </Link>
     </div>
   );
 }

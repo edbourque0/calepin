@@ -27,9 +27,9 @@ export function BoardView({
 
   if (!group)
     return (
-      <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
         {t("db.needSelect")}
-      </p>
+      </div>
     );
 
   const hidden = view.config.hidden ?? [];

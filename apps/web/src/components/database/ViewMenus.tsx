@@ -213,7 +213,7 @@ export function PropertiesMenu({ data, view, onChange }: MenuProps) {
           </button>
         );
       })}
-      {!data.properties.length && <p className="px-2 py-2 text-sm text-muted-foreground">{t("db.properties")} —</p>}
+      {!data.properties.length && <div className="px-2 py-2 text-sm text-muted-foreground">{t("db.properties")} —</div>}
     </div>
   );
 }
@@ -239,7 +239,7 @@ export function GroupMenu({ data, view, onChange }: MenuProps) {
           {p.name}
         </button>
       ))}
-      {!groupable.length && <p className="px-2 py-2 text-[13px] text-muted-foreground">{t("db.needSelect")}</p>}
+      {!groupable.length && <div className="px-2 py-2 text-[13px] text-muted-foreground">{t("db.needSelect")}</div>}
     </div>
   );
 }

@@ -44,7 +44,7 @@ export function LayoutMenu({
     <div className="flex w-64 flex-col gap-3 p-2">
       {(view.type === "calendar" || view.type === "timeline") &&
         (dates.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t("db.needDate")}</p>
+          <div className="text-[13px] text-muted-foreground">{t("db.needDate")}</div>
         ) : (
           <>
             <Field label={t("db.dateProperty")}>

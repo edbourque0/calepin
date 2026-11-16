@@ -5,7 +5,7 @@ import { db } from "../db/index.js";
 import { pages } from "../db/schema.js";
 import type { AppEnv } from "../http.js";
 import { emitWorkspace } from "../lib/events.js";
-import { createPage, movePage, pageSummary, trashPage } from "../lib/pages.js";
+import { createPage, editDocument, movePage, pageSummary, setTitle, trashPage } from "../lib/pages.js";
 import { positionAt, subtreeIds } from "../lib/tree.js";
 import { canEdit, getMembership, getPageAccess } from "../lib/workspaces.js";
 
@@ -18,6 +18,7 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
+  title: z.string().max(500).optional(),
   icon: z.string().max(64).nullable().optional(),
   /** Move the page: new parent (null = root) and index among its new siblings. */
   move: z.object({ parentId: uuid.nullable(), index: z.number().int().min(0) }).optional(),
@@ -187,6 +188,7 @@ export const pageRoutes = new Hono<AppEnv>()
       }
       await movePage(id, access.workspaceId, parentId, index, c.var.user.id);
     }
+    if (body.title !== undefined) await editDocument(id, c.var.user.id, (doc) => setTitle(doc, body.title!));
     if (body.icon !== undefined) {
       await db.update(pages).set({ icon: body.icon, updatedAt: new Date() }).where(eq(pages.id, id));
       emitWorkspace(access.workspaceId);

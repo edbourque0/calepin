@@ -1,21 +1,33 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
+import { BlockNoteSchema, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { en, fr } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
-import { useCreateBlockNote } from "@blocknote/react";
+import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
+import { Table2 } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { DatabaseBlock } from "@/components/database/DatabaseBlock";
 import { BLOCKS_FRAGMENT, type Collab } from "@/lib/collab";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { resolvedColorFor } from "@/lib/utils";
-import { useWorkspace } from "@/lib/workspace";
+import { usePageActions, useWorkspace } from "@/lib/workspace";
 
 const locales = { en, fr };
 
+/** BlockNote's blocks plus Calepin's inline database. Must match apps/server/src/lib/blocks.ts. */
+export const schema = BlockNoteSchema.create().extend({ blockSpecs: { database: DatabaseBlock() } });
+
 export type EditorHandle = { focusStart: () => void };
 
-type Props = { pageId: string; collab: Collab; readOnly: boolean; onReady?: (handle: EditorHandle) => void };
+type Props = {
+  pageId: string;
+  workspaceId: string;
+  collab: Collab;
+  readOnly: boolean;
+  onReady?: (handle: EditorHandle) => void;
+};
 
 /** Uploads to Calepin, which stores the file (disk or S3) and serves it back through an authenticated link. */
 async function uploadFile(pageId: string, file: File) {
@@ -34,13 +46,15 @@ async function uploadFile(pageId: string, file: File) {
   return data.url;
 }
 
-export const Editor = forwardRef<EditorHandle, Props>(({ pageId, collab, readOnly, onReady }, ref) => {
+export const Editor = forwardRef<EditorHandle, Props>(({ pageId, workspaceId, collab, readOnly, onReady }, ref) => {
   const { lang, t } = useI18n();
   const { theme } = useTheme();
   const { me } = useWorkspace();
+  const { create } = usePageActions();
 
   const editor = useCreateBlockNote(
     withCollaboration({
+      schema,
       uploadFile: (file: File) => uploadFile(pageId, file),
       dictionary: {
         ...locales[lang],
@@ -71,5 +85,30 @@ export const Editor = forwardRef<EditorHandle, Props>(({ pageId, collab, readOnl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
-  return <BlockNoteView editor={editor} theme={theme} editable={!readOnly} className="calepin-editor" />;
+  const databaseItem = {
+    title: t("slash.database"),
+    subtext: t("slash.databaseHint"),
+    aliases: ["database", "table", "db", "base", "tableau", "bd"],
+    group: "Calepin",
+    icon: <Table2 size={18} />,
+    onItemClick: async () => {
+      const db = await create.mutateAsync({
+        parentId: pageId,
+        workspaceId,
+        database: { tags: t("db.defaultTags"), view: t("db.defaultView") },
+      });
+      insertOrUpdateBlockForSlashMenu(editor, { type: "database", props: { databaseId: db.id } });
+    },
+  };
+
+  return (
+    <BlockNoteView editor={editor} theme={theme} editable={!readOnly} slashMenu={false} className="calepin-editor">
+      <SuggestionMenuController
+        triggerCharacter="/"
+        getItems={async (query) =>
+          filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), databaseItem], query)
+        }
+      />
+    </BlockNoteView>
+  );
 });

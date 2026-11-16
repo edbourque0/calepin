@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { db } from "../db/index.js";
 import { pages, workspaces } from "../db/schema.js";
 import { docToMarkdown } from "./blocks.js";
+import { nameDatabaseLinks } from "./pages.js";
 import { formatValue, getDatabase, getRows, peopleNames, personIds, type Property } from "./database.js";
 
 /** Safe file name, keeping accents (Québec stays Québec). */
@@ -34,7 +35,7 @@ export async function pageToMarkdown(page: {
   people?: Map<string, string>;
   row?: { props: Record<string, unknown> };
 }) {
-  const body = await docToMarkdown(docFrom(page.yjsState));
+  const body = await nameDatabaseLinks(await docToMarkdown(docFrom(page.yjsState)));
   const heading = `# ${page.icon ? `${page.icon} ` : ""}${page.title || "Sans titre"}`;
   let front = "";
   if (page.properties?.length && page.row) {

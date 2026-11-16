@@ -121,7 +121,21 @@ export function setTitle(doc: Y.Doc, title: string) {
 }
 
 export async function getPageMarkdown(pageId: string) {
-  return readDocument(pageId, (doc) => docToMarkdown(doc));
+  return nameDatabaseLinks(await readDocument(pageId, (doc) => docToMarkdown(doc)));
+}
+
+/** Gives embedded databases ("[Database](/p/id)" in Markdown) their real title. */
+export async function nameDatabaseLinks(markdown: string) {
+  const ids = [...markdown.matchAll(/\[Database\]\(\/p\/([0-9a-f-]{36})\)/g)].map((m) => m[1]!);
+  if (!ids.length) return markdown;
+  const rows = await db
+    .select({ id: pages.id, title: pages.title, icon: pages.icon })
+    .from(pages)
+    .where(inArray(pages.id, ids));
+  const names = new Map(rows.map((r) => [r.id, `${r.icon ? `${r.icon} ` : ""}${r.title || "Untitled"}`]));
+  return markdown.replace(/\[Database\]\(\/p\/([0-9a-f-]{36})\)/g, (all, id: string) =>
+    names.has(id) ? `[${names.get(id)} (database)](/p/${id})` : all,
+  );
 }
 
 export async function writePageMarkdown(

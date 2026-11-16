@@ -100,9 +100,9 @@ export function CalendarView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3 className="heading text-base capitalize">
+        <div className="heading text-base capitalize">
           {first.toLocaleDateString(locale, { month: "long", year: "numeric" })}
-        </h3>
+        </div>
         <div className="ml-auto flex items-center gap-1">
           {unscheduled > 0 && (
             <span className="mr-2 text-xs text-muted-foreground">{t("db.unscheduled", { n: unscheduled })}</span>
