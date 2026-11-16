@@ -1,0 +1,37 @@
+services:
+  calepin:
+    image: ghcr.io/edbourque0/calepin:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      DATABASE_URL: postgres://calepin:${POSTGRES_PASSWORD:-calepin}@db:5432/calepin
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET (openssl rand -base64 32)}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-SSO}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: calepin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-calepin}
+      POSTGRES_DB: calepin
+    volumes:
+      - calepin-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calepin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  calepin-db:

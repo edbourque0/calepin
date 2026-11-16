@@ -1,0 +1,12 @@
+{
+  "name": "calepin",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter @calepin/web build && pnpm --filter @calepin/server build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @calepin/server db:generate"
+  }
+}
