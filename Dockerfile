@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-alpine AS build
+# The build runs once, natively on the CI runner ($BUILDPLATFORM): the output is plain JavaScript
+# with no native addons, so the same files work in the amd64 and arm64 images. Running the build
+# under QEMU for arm64 crashed (illegal instruction) and was very slow.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
