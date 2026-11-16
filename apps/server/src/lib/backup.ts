@@ -2,13 +2,14 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { AwsClient } from "aws4fetch";
 import { desc, eq } from "drizzle-orm";
 import { hocuspocus, setRestoring } from "../collab.js";
 import { client, db } from "../db/index.js";
-import { backupRuns, settings } from "../db/schema.js";
+import { backupRuns } from "../db/schema.js";
 import { env, s3Enabled } from "../env.js";
 import { emitReset } from "./events.js";
+import { getSetting, setSetting } from "./settings.js";
+import { getStorageSettings, S3Bucket, s3ConfigFrom } from "./storage.js";
 import { randomString } from "./tokens.js";
 
 /** Tables in the order they can be re-inserted (parents before children). backup_runs is not backed up. */
@@ -20,6 +21,7 @@ const TABLES = [
   "workspaces",
   "workspace_members",
   "pages",
+  "files",
   "page_shares",
   "invites",
   "api_tokens",
@@ -41,19 +43,9 @@ const DEFAULT_SETTINGS: BackupSettings = { enabled: true, hour: 3, retention: 14
 
 export class BackupError extends Error {}
 
+export { getSetting, setSetting };
+
 /* ---------- Settings ---------- */
-
-export async function getSetting<T>(key: string, fallback: T): Promise<T> {
-  const [row] = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, key));
-  return row ? ({ ...(fallback as object), ...(row.value as object) } as T) : fallback;
-}
-
-export async function setSetting(key: string, value: unknown) {
-  await db
-    .insert(settings)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
-}
 
 export const getBackupSettings = () => getSetting<BackupSettings>("backup", DEFAULT_SETTINGS);
 
@@ -197,21 +189,35 @@ export async function restoreDatabase(raw: Buffer) {
 /* ---------- Targets ---------- */
 
 const backupDir = () => path.resolve(env.BACKUP_DIR);
-const s3 = () =>
-  new AwsClient({
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-    region: env.S3_REGION,
-    service: "s3",
-  });
-const s3Url = (key = "") => `${env.S3_ENDPOINT.replace(/\/$/, "")}/${env.S3_BUCKET}/${key}`;
-const s3Key = (name: string) => `${env.S3_PREFIX}${name}`;
+/**
+ * Off-site copy: the S3_* environment variables if set, otherwise the bucket from
+ * Settings → Storage when "also store backups there" is on (under <prefix>backups/).
+ */
+async function backupBucket(): Promise<{ bucket: S3Bucket; prefix: string; label: string } | null> {
+  if (s3Enabled) {
+    const bucket = new S3Bucket({
+      endpoint: env.S3_ENDPOINT,
+      region: env.S3_REGION,
+      bucket: env.S3_BUCKET,
+      accessKeyId: env.S3_ACCESS_KEY_ID,
+      secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+      prefix: env.S3_PREFIX,
+    });
+    return { bucket, prefix: env.S3_PREFIX, label: `${env.S3_BUCKET}/${env.S3_PREFIX}` };
+  }
+  const s = await getStorageSettings();
+  const cfg = s.useForBackups ? s3ConfigFrom(s) : null;
+  if (!cfg) return null;
+  const prefix = `${cfg.prefix}backups/`;
+  return { bucket: new S3Bucket(cfg), prefix, label: `${cfg.bucket}/${prefix}` };
+}
 const VALID_NAME = /^calepin-[\dTZ-]+(-[a-z-]+)?\.json\.gz(\.enc)?$/;
 
-export function targets() {
+export async function targets() {
+  const remote = await backupBucket();
   return [
     { id: "local" as const, label: backupDir(), configured: true },
-    { id: "s3" as const, label: s3Enabled ? `${env.S3_BUCKET}/${env.S3_PREFIX}` : "", configured: s3Enabled },
+    { id: "s3" as const, label: remote?.label ?? "", configured: !!remote },
   ];
 }
 
@@ -221,12 +227,9 @@ async function writeTarget(target: BackupTarget, name: string, data: Buffer) {
     await writeFile(path.join(backupDir(), name), data);
     return;
   }
-  const res = await s3().fetch(s3Url(s3Key(name)), {
-    method: "PUT",
-    body: new Uint8Array(data),
-    headers: { "Content-Type": "application/octet-stream" },
-  });
-  if (!res.ok) throw new Error(`S3 upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  const remote = await backupBucket();
+  if (!remote) throw new Error("No S3 bucket configured for backups");
+  await remote.bucket.put(`${remote.prefix}${name}`, new Uint8Array(data));
 }
 
 export async function listBackups(): Promise<BackupFile[]> {
@@ -240,20 +243,12 @@ export async function listBackups(): Promise<BackupFile[]> {
   } catch {
     /* directory not created yet */
   }
-  if (s3Enabled) {
+  const remote = await backupBucket();
+  if (remote) {
     try {
-      const res = await s3().fetch(`${s3Url()}?list-type=2&prefix=${encodeURIComponent(env.S3_PREFIX)}`);
-      const xml = await res.text();
-      for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
-        const key = m[1]!.match(/<Key>(.*?)<\/Key>/)?.[1] ?? "";
-        const name = key.slice(env.S3_PREFIX.length);
-        if (!VALID_NAME.test(name)) continue;
-        out.push({
-          target: "s3",
-          name,
-          size: Number(m[1]!.match(/<Size>(\d+)<\/Size>/)?.[1] ?? 0),
-          date: m[1]!.match(/<LastModified>(.*?)<\/LastModified>/)?.[1] ?? "",
-        });
+      for (const o of await remote.bucket.list(remote.prefix)) {
+        const name = o.key.slice(remote.prefix.length);
+        if (VALID_NAME.test(name)) out.push({ target: "s3", name, size: o.size, date: o.lastModified });
       }
     } catch (e) {
       console.error("[backup] S3 list failed", e);
@@ -265,16 +260,22 @@ export async function listBackups(): Promise<BackupFile[]> {
 export async function readBackup(target: BackupTarget, name: string) {
   if (!VALID_NAME.test(name)) throw new BackupError("Invalid backup name");
   if (target === "local") return readFile(path.join(backupDir(), name));
-  if (!s3Enabled) throw new BackupError("S3 is not configured");
-  const res = await s3().fetch(s3Url(s3Key(name)));
-  if (!res.ok) throw new BackupError(`Backup not found on S3 (${res.status})`);
-  return Buffer.from(await res.arrayBuffer());
+  const remote = await backupBucket();
+  if (!remote) throw new BackupError("S3 is not configured");
+  try {
+    return Buffer.from(await (await remote.bucket.get(`${remote.prefix}${name}`)).arrayBuffer());
+  } catch {
+    throw new BackupError("Backup not found on S3");
+  }
 }
 
 export async function deleteBackup(target: BackupTarget, name: string) {
   if (!VALID_NAME.test(name)) throw new BackupError("Invalid backup name");
   if (target === "local") await rm(path.join(backupDir(), name), { force: true });
-  else if (s3Enabled) await s3().fetch(s3Url(s3Key(name)), { method: "DELETE" });
+  else {
+    const remote = await backupBucket();
+    await remote?.bucket.delete(`${remote.prefix}${name}`);
+  }
 }
 
 /** Keeps the newest `keep` backups in each target. */
@@ -305,7 +306,7 @@ export async function runBackup(kind: "scheduled" | "manual" | "before-restore")
       const name = `calepin-${stamp}${suffix}.json.gz${env.BACKUP_PASSPHRASE ? ".enc" : ""}`;
       const done: string[] = [];
       const errors: string[] = [];
-      for (const t of targets().filter((x) => x.configured)) {
+      for (const t of (await targets()).filter((x) => x.configured)) {
         try {
           await writeTarget(t.id, name, data);
           done.push(t.id);

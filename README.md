@@ -23,6 +23,8 @@ A self-hosted notebook: pages, live collaboration, offline-ready PWA — with da
   so nothing is lost and collaborators keep working)
 - **Built-in backups**: a daily, optionally encrypted backup of the whole instance, kept on the server and copied to
   any S3-compatible storage; restore from the app or the command line
+- **Images and files**: drop, paste or upload images, files, video and audio into any page. Stored on the server or
+  in a private S3-compatible bucket (Wasabi, AWS, MinIO…) configured in Settings → Storage
 - **Export**: any page as Markdown, any database as CSV, a whole workspace as a ZIP
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
 - **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes
@@ -58,8 +60,26 @@ Calepin works behind a reverse proxy or Cloudflare Tunnel; it needs WebSockets o
 | `BACKUP_PASSPHRASE` | — | Encrypts backups (recommended) |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PREFIX` | — | Off-site copy of backups |
 | `VERSION_RETENTION_DAYS` | `90` | How long page versions are kept |
+| `MAX_UPLOAD_MB` | `50` | Maximum size of an uploaded file |
 
 For OIDC, register the redirect URI `PUBLIC_URL/api/auth/callback/oidc` with your identity provider.
+
+## Images and files
+
+Uploads are kept on the server (`/app/data/files`) or, once configured in **Settings → Storage** (administrators),
+in an S3-compatible bucket. There's a Wasabi preset: pick the region, enter the bucket and an access key, test the
+connection, save.
+
+The bucket stays **private**: no public-read policy or bucket ACL is needed (Wasabi often refuses public access).
+Pages reference files as `/api/files/<id>/<name>` and Calepin streams them from the bucket after checking that the
+viewer can see the page; published pages get time-limited signed links so visitors without an account see their
+images too. Video and audio seek normally (HTTP range requests are passed through).
+
+- Changing the storage later only affects new uploads; existing files stay readable where they are.
+- The S3 secret key is stored encrypted (derived from `BETTER_AUTH_SECRET`; if you change that secret, re-enter the key).
+- The same bucket can also receive the backups (under `<prefix>backups/`), unless the `S3_*` variables are set.
+- Files of pages deleted forever are removed during the nightly maintenance.
+- Backups contain the file list, not the file contents: keep `/app/data/files` (or the bucket) backed up too.
 
 ## Backups
 

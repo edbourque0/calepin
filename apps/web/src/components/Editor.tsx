@@ -15,15 +15,33 @@ const locales = { en, fr };
 
 export type EditorHandle = { focusStart: () => void };
 
-type Props = { collab: Collab; readOnly: boolean; onReady?: (handle: EditorHandle) => void };
+type Props = { pageId: string; collab: Collab; readOnly: boolean; onReady?: (handle: EditorHandle) => void };
 
-export const Editor = forwardRef<EditorHandle, Props>(({ collab, readOnly, onReady }, ref) => {
+/** Uploads to Calepin, which stores the file (disk or S3) and serves it back through an authenticated link. */
+async function uploadFile(pageId: string, file: File) {
+  const res = await fetch(`/api/pages/${pageId}/files`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) },
+    body: file,
+  });
+  const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!res.ok || !data.url) {
+    const message = data.error ?? res.statusText;
+    window.alert(message);
+    throw new Error(message);
+  }
+  return data.url;
+}
+
+export const Editor = forwardRef<EditorHandle, Props>(({ pageId, collab, readOnly, onReady }, ref) => {
   const { lang, t } = useI18n();
   const { theme } = useTheme();
   const { me } = useWorkspace();
 
   const editor = useCreateBlockNote(
     withCollaboration({
+      uploadFile: (file: File) => uploadFile(pageId, file),
       dictionary: {
         ...locales[lang],
         placeholders: { ...locales[lang].placeholders, default: t("page.editorPlaceholder") },
@@ -35,7 +53,7 @@ export const Editor = forwardRef<EditorHandle, Props>(({ collab, readOnly, onRea
         showCursorLabels: "activity",
       },
     }),
-    [collab, lang],
+    [collab, lang, pageId],
   );
 
   const handle: EditorHandle = {

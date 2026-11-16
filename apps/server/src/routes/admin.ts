@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { instanceAdmins } from "../db/schema.js";
-import { env } from "../env.js";
+import { files, instanceAdmins } from "../db/schema.js";
+import { env, s3Enabled } from "../env.js";
 import type { AppEnv } from "../http.js";
 import {
   BackupError,
@@ -19,6 +19,8 @@ import {
   setSetting,
   targets,
 } from "../lib/backup.js";
+import { openSecret } from "../lib/secrets.js";
+import { getStorageSettings, normalizePrefix, s3ConfigFrom, saveStorageSettings, testBucket } from "../lib/storage.js";
 
 const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (c.var.viaToken) return c.json({ error: "Use the app to manage backups" }, 403);
@@ -28,6 +30,21 @@ const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 const target = z.enum(["local", "s3"]);
+
+const storageInput = z
+  .object({
+    provider: z.enum(["local", "s3"]),
+    preset: z.enum(["wasabi", "aws", "other"]),
+    endpoint: z.string().trim().url().or(z.literal("")),
+    region: z.string().trim().max(50),
+    bucket: z.string().trim().max(63),
+    accessKeyId: z.string().trim().max(200),
+    /** Empty = keep the stored secret. */
+    secretAccessKey: z.string().max(500),
+    prefix: z.string().trim().max(200),
+    useForBackups: z.boolean(),
+  })
+  .partial();
 const CONFIRM = "RESTORE";
 
 async function restore(c: { json: (b: unknown, s?: 400) => Response }, data: Buffer) {
@@ -49,7 +66,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .get("/admin/backups", async (c) =>
     c.json({
       settings: await getBackupSettings(),
-      targets: targets(),
+      targets: await targets(),
       encrypted: !!env.BACKUP_PASSPHRASE,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       files: await listBackups(),
@@ -91,6 +108,64 @@ export const adminRoutes = new Hono<AppEnv>()
     if (confirm !== CONFIRM) return c.json({ error: `Type ${CONFIRM} to confirm` }, 400);
     const data = await readBackup(target.parse(c.req.param("target")) as BackupTarget, c.req.param("name"));
     return restore(c, data);
+  })
+
+  /* ----- File storage (local disk or S3-compatible bucket) ----- */
+  .get("/admin/storage", async (c) => {
+    const s = await getStorageSettings();
+    const { secretSealed, ...rest } = s;
+    const usage = await db
+      .select({
+        storage: files.storage,
+        count: sql<number>`count(*)::int`,
+        size: sql<number>`coalesce(sum(${files.size}), 0)::bigint`,
+      })
+      .from(files)
+      .groupBy(files.storage);
+    return c.json({
+      ...rest,
+      hasSecret: !!openSecret(secretSealed),
+      envBackupBucket: s3Enabled,
+      maxUploadMb: env.MAX_UPLOAD_MB,
+      usage: usage.map((u) => ({ ...u, size: Number(u.size) })),
+    });
+  })
+
+  .post("/admin/storage/test", async (c) => {
+    const body = storageInput.parse(await c.req.json());
+    const current = await getStorageSettings();
+    const cfg = s3ConfigFrom(
+      { ...current, ...body, prefix: normalizePrefix(body.prefix ?? current.prefix) },
+      body.secretAccessKey,
+    );
+    if (!cfg) return c.json({ ok: false, error: "Fill in the endpoint, bucket and keys" }, 400);
+    try {
+      await testBucket(cfg);
+      return c.json({ ok: true });
+    } catch (e) {
+      return c.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 400);
+    }
+  })
+
+  .put("/admin/storage", async (c) => {
+    const body = storageInput.parse(await c.req.json());
+    const current = await getStorageSettings();
+    if ((body.provider ?? current.provider) === "s3") {
+      // Never switch uploads to a bucket that doesn't work.
+      const cfg = s3ConfigFrom(
+        { ...current, ...body, prefix: normalizePrefix(body.prefix ?? current.prefix) },
+        body.secretAccessKey,
+      );
+      if (!cfg) return c.json({ error: "Fill in the endpoint, bucket and keys" }, 400);
+      try {
+        await testBucket(cfg);
+      } catch (e) {
+        return c.json({ error: `The bucket isn't reachable: ${e instanceof Error ? e.message : e}` }, 400);
+      }
+    }
+    const saved = await saveStorageSettings(body);
+    const { secretSealed, ...rest } = saved;
+    return c.json({ ...rest, hasSecret: !!openSecret(secretSealed) });
   })
 
   /** Restore from a file uploaded from the browser (raw body). */

@@ -332,3 +332,26 @@ export const backupRuns = pgTable("backup_runs", {
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
+
+/* ---------- Uploaded files ---------- */
+
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** The page the file was uploaded to (access follows the page). Null once the page is deleted forever. */
+    pageId: uuid("page_id").references(() => pages.id, { onDelete: "set null" }),
+    uploadedBy: text("uploaded_by").references(() => user.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    /** Where the bytes live: kept per file, so changing the storage later doesn't break old files. */
+    storage: text("storage").$type<"local" | "s3">().notNull(),
+    key: text("key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("files_page_idx").on(t.pageId)],
+);

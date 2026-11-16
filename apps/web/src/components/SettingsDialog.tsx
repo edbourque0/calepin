@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DatabaseBackup,
+  HardDrive,
   Download,
   KeyRound,
   LogOut,
@@ -19,10 +20,11 @@ import { type Lang, useI18n, useRelativeTime } from "@/lib/i18n";
 import { type ThemePref, useTheme } from "@/lib/theme";
 import { useWorkspace } from "@/lib/workspace";
 import { BackupsTab } from "./BackupsTab";
+import { StorageTab } from "./StorageTab";
 import { CopyButton, RoleSelect } from "./SharePanel";
 import { Avatar, Button, Dialog, IconButton, Spinner, Tabs } from "./ui";
 
-type Tab = "general" | "workspace" | "tokens" | "backups";
+type Tab = "general" | "workspace" | "tokens" | "storage" | "backups";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
@@ -48,7 +50,12 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             { value: "general", label: t("settings.tabGeneral"), icon: <Settings2 /> },
             { value: "workspace", label: t("settings.tabWorkspace"), icon: <Users /> },
             { value: "tokens", label: t("settings.tabTokens"), icon: <KeyRound /> },
-            ...(me.isAdmin ? [{ value: "backups" as const, label: t("backup.tab"), icon: <DatabaseBackup /> }] : []),
+            ...(me.isAdmin
+              ? [
+                  { value: "storage" as const, label: t("storage.tab"), icon: <HardDrive /> },
+                  { value: "backups" as const, label: t("backup.tab"), icon: <DatabaseBackup /> },
+                ]
+              : []),
           ]}
         />
       </div>
@@ -56,6 +63,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         {tab === "general" && <GeneralTab />}
         {tab === "workspace" && <WorkspaceTab onClose={onClose} />}
         {tab === "tokens" && <TokensTab />}
+        {tab === "storage" && <StorageTab />}
         {tab === "backups" && <BackupsTab />}
       </div>
     </Dialog>

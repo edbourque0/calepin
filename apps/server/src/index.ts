@@ -17,6 +17,7 @@ import { startScheduler } from "./lib/scheduler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { databaseRoutes } from "./routes/databases.js";
 import { exportRoutes } from "./routes/export.js";
+import { fileRoutes, fileUploadRoutes } from "./routes/files.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { pageRoutes } from "./routes/pages.js";
 import { publicRoutes } from "./routes/public.js";
@@ -80,6 +81,7 @@ app.get("/api/config", async (c) =>
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.route("/api", inviteRoutes);
+app.route("/", fileRoutes);
 
 const api = new Hono<AppEnv>()
   .use(requireUser)
@@ -90,6 +92,7 @@ const api = new Hono<AppEnv>()
   .route("/", versionRoutes)
   .route("/", exportRoutes)
   .route("/", adminRoutes)
+  .route("/", fileUploadRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

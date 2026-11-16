@@ -25,6 +25,9 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional().default(""),
   S3_SECRET_ACCESS_KEY: z.string().optional().default(""),
   S3_PREFIX: z.string().optional().default("calepin/"),
+  /** Where uploaded files are kept when storage is "local". */
+  FILES_DIR: z.string().default("./data/files"),
+  MAX_UPLOAD_MB: z.coerce.number().min(1).default(50),
   /** Days of version history to keep (thinned to one per day after a week). */
   VERSION_RETENTION_DAYS: z.coerce.number().int().min(7).default(90),
 });

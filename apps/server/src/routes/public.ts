@@ -5,6 +5,7 @@ import { db } from "../db/index.js";
 import { pages, user } from "../db/schema.js";
 import { docToHTML } from "../lib/blocks.js";
 import { TITLE_TEXT } from "../lib/ydoc.js";
+import { signFileLinks } from "./files.js";
 
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
@@ -28,7 +29,8 @@ export function publicRoutes(appCss: string | null) {
     const doc = new Y.Doc();
     if (page.state) Y.applyUpdate(doc, page.state);
     const title = doc.getText(TITLE_TEXT).toString().trim() || page.title || "Untitled";
-    const body = await docToHTML(doc);
+    // Visitors have no session: give them time-limited links to the page's files.
+    const body = signFileLinks(await docToHTML(doc));
     const updated = page.updatedAt.toISOString().slice(0, 10);
 
     c.header("Cache-Control", "public, max-age=30");

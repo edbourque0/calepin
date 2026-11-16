@@ -138,7 +138,13 @@ function CollabPage({ resolved }: { resolved: Resolved }) {
                 )}
                 <div className="-mx-[54px] mt-3 max-md:-mx-6">
                   <Suspense fallback={<div className="h-6" />}>
-                    <Editor ref={editorRef} collab={collab} readOnly={readOnly} onReady={onEditorReady} />
+                    <Editor
+                      ref={editorRef}
+                      pageId={pageId}
+                      collab={collab}
+                      readOnly={readOnly}
+                      onReady={onEditorReady}
+                    />
                   </Suspense>
                 </div>
               </>

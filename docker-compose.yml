@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Local backups (also copied to S3 when configured)
+      # Uploaded files (when stored locally) and local backups
       - calepin-data:/app/data
     environment:
       # Time zone used for the daily backup time

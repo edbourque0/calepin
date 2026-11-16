@@ -1,6 +1,33 @@
 import { env } from "../env.js";
-import { getBackupSettings, getSetting, runBackup, setSetting } from "./backup.js";
+import { getBackupSettings, runBackup } from "./backup.js";
+import { getSetting, setSetting } from "./settings.js";
 import { pruneVersions } from "./versions.js";
+import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { files } from "../db/schema.js";
+import { removeFile } from "./storage.js";
+
+/** Files whose page was deleted forever (a day ago or more). */
+async function removeOrphanFiles() {
+  const orphans = await db
+    .select()
+    .from(files)
+    .where(and(isNull(files.pageId), lt(files.createdAt, new Date(Date.now() - 86_400_000))));
+  let removed = 0;
+  for (const f of orphans) {
+    // Still shown in another page (copied there)? Then that page now owns it.
+    const [user] = await db.execute<{ id: string }>(sql`
+      SELECT id FROM pages WHERE yjs_state IS NOT NULL AND position(convert_to(${f.id}, 'UTF8') in yjs_state) > 0 LIMIT 1`);
+    if (user) {
+      await db.update(files).set({ pageId: user.id }).where(eq(files.id, f.id));
+      continue;
+    }
+    await removeFile(f.storage, f.key).catch((e) => console.error("[files] cleanup", e));
+    await db.delete(files).where(eq(files.id, f.id));
+    removed++;
+  }
+  return removed;
+}
 
 /**
  * Daily maintenance at the configured hour (container time zone, set TZ):
@@ -20,6 +47,8 @@ export function startScheduler() {
         const run = await runBackup("scheduled");
         console.log(`[backup] scheduled backup ${run.status}${run.fileName ? `: ${run.fileName}` : ""}`);
       }
+      const removed = await removeOrphanFiles();
+      if (removed) console.log(`[files] removed ${removed} files of deleted pages`);
       const pruned = await pruneVersions(env.VERSION_RETENTION_DAYS);
       if (pruned) console.log(`[versions] pruned ${pruned} old versions`);
     } catch (e) {

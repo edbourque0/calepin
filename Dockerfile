@@ -13,20 +13,21 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build \
  && pnpm --filter @calepin/server deploy --prod --legacy /out \
- && mkdir -p /data/backups
+ && mkdir -p /data/backups /data/files
 
 FROM node:22-alpine
 ENV NODE_ENV=production \
     PORT=3000 \
     WEB_DIST=/app/web \
-    BACKUP_DIR=/app/data/backups
+    BACKUP_DIR=/app/data/backups \
+    FILES_DIR=/app/data/files
 WORKDIR /app
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /out/package.json ./package.json
 COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/apps/server/drizzle ./drizzle
 COPY --from=build /app/apps/web/dist ./web
-# Writable data directory for local backups (mount a volume on /app/data).
+# Writable data directory for local backups and uploaded files (mount a volume on /app/data).
 COPY --from=build --chown=node:node /data /app/data
 USER node
 VOLUME ["/app/data"]
