@@ -7,6 +7,7 @@ import { docToHTML } from "../lib/blocks.js";
 import { formatValue, getDatabase, getRows, peopleNames, personIds } from "../lib/database.js";
 import { TITLE_TEXT } from "../lib/ydoc.js";
 import { signFileLinks } from "./files.js";
+import { iconHtml, iconPrefix } from "../lib/icons.js";
 
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
@@ -53,7 +54,7 @@ ${appCss ? `<link rel="stylesheet" href="${appCss}" />` : ""}
 </head>
 <body>
 <main class="pub">
-  ${page.icon ? `<div class="pub-icon">${escape(page.icon)}</div>` : ""}
+  ${page.icon ? `<div class="pub-icon">${iconHtml(page.icon, 56)}</div>` : ""}
   <h1 class="page-title">${escape(title)}</h1>
   <p class="pub-meta">${page.author ? `${escape(page.author)} · ` : ""}<time datetime="${updated}">${updated}</time></p>
   <article class="pub-body">${body}</article>
@@ -85,12 +86,12 @@ async function embedDatabases(html: string, pageId: string, workspaceId: string)
     const cell = (s: string) => `<td>${escape(s)}</td>`;
     tables.set(
       id,
-      `<figure class="pub-db"><figcaption>${escape(`${database.page.icon ? `${database.page.icon} ` : ""}${database.page.title || "Untitled"}`)}</figcaption>
+      `<figure class="pub-db"><figcaption>${escape(`${iconPrefix(database.page.icon)}${database.page.title || "Untitled"}`)}</figcaption>
 <div class="pub-db-scroll"><table><thead><tr><th>${escape("Name")}</th>${props.map((p) => `<th>${escape(p.name)}</th>`).join("")}</tr></thead>
 <tbody>${rows
         .map(
           (r) =>
-            `<tr>${cell(`${r.icon ? `${r.icon} ` : ""}${r.title || "Untitled"}`)}${props
+            `<tr>${cell(`${iconPrefix(r.icon)}${r.title || "Untitled"}`)}${props
               .map((p) => cell(formatValue(p, r.props[p.id], people).replace(/ \([0-9a-f-]{36}\)/g, "")))
               .join("")}</tr>`,
         )

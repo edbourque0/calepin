@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 import { api, type TrashItem } from "@/lib/api";
 import { useI18n, useRelativeTime } from "@/lib/i18n";
 import { pagesKey, useWorkspace } from "@/lib/workspace";
 import { Dialog, IconButton, Spinner } from "./ui";
+import { PageIcon } from "@/components/PageIcon";
 
 export function TrashDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
@@ -43,11 +44,7 @@ export function TrashDialog({ open, onClose }: { open: boolean; onClose: () => v
         {data?.map((item) => (
           <div key={item.id} className="group flex h-10 items-center gap-2 rounded-sm px-2 hover:bg-accent">
             <span className="flex size-5 items-center justify-center text-muted-foreground">
-              {item.icon ? (
-                <span className="text-base leading-none">{item.icon}</span>
-              ) : (
-                <FileText className="size-4" />
-              )}
+              <PageIcon icon={item.icon} size={16} />
             </span>
             <span className="flex-1 truncate text-sm">{item.title || t("page.untitled")}</span>
             <span className="text-xs text-muted-foreground tabular-nums">{rel(item.deletedAt)}</span>

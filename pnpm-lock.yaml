@@ -50,6 +50,9 @@ importers:
       hono:
         specifier: ^4.13.19
         version: 4.13.19
+      lucide:
+        specifier: ^1.73.0
+        version: 1.73.0
       postgres:
         specifier: ^4.1.1
         version: 4.1.1
@@ -132,6 +135,9 @@ importers:
       diff:
         specifier: ^9.0.0
         version: 9.0.0
+      lucide:
+        specifier: ^1.73.0
+        version: 1.73.0
       lucide-react:
         specifier: ^1.73.0
         version: 1.73.0(@types/react@19.3.0)(react@19.3.1)
@@ -3309,6 +3315,9 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  lucide@1.73.0:
+    resolution: {integrity: sha512-qiNin5j7qEflnAdLG/9Yb4d5N9qnnP8TOMdn6e66399fgX25Y0eYEPS3PUPWGIPLloOj4X+xLTdF2lk9gSgWpA==}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -7255,6 +7264,8 @@ snapshots:
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
+
+  lucide@1.73.0: {}
 
   magic-string@0.30.21:
     dependencies:

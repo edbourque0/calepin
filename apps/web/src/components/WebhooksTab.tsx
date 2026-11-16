@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { usePages, useWorkspace } from "@/lib/workspace";
 import { CopyButton } from "./SharePanel";
 import { Button, IconButton, Switch } from "./ui";
+import { iconText } from "@/lib/icons";
 
 const EVENTS = ["page.created", "page.updated", "page.deleted", "row.created", "row.updated", "row.deleted"] as const;
 
@@ -113,7 +114,7 @@ export function WebhooksTab() {
           <option value="">{t("webhooks.wholeWorkspace")}</option>
           {scopes.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.icon ? `${p.icon} ` : ""}
+              {iconText(p.icon) ? `${iconText(p.icon)} ` : ""}
               {p.title || t("page.untitled")}
             </option>
           ))}

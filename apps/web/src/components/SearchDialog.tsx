@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import { CornerDownLeft, FileText, Plus, Search } from "lucide-react";
+import { CornerDownLeft, Plus, Search } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, type SearchResult } from "@/lib/api";
 import { useI18n, useRelativeTime } from "@/lib/i18n";
 import { usePageActions, usePageIndex, useWorkspace } from "@/lib/workspace";
 import { Dialog, Kbd, Spinner } from "./ui";
+import { PageIcon } from "@/components/PageIcon";
 
 function useDebounced<T>(value: T, ms: number) {
   const [v, setV] = useState(value);
@@ -106,11 +107,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                   className="group flex min-h-9 cursor-pointer items-start gap-2 rounded-sm px-2 py-2 data-[selected=true]:bg-accent"
                 >
                   <span className="flex size-5 items-center justify-center text-muted-foreground">
-                    {r.icon ? (
-                      <span className="text-base leading-none">{r.icon}</span>
-                    ) : (
-                      <FileText className="size-4" />
-                    )}
+                    <PageIcon icon={r.icon} size={16} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">

@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, FileText, Users } from "lucide-react";
+import { CircleAlert, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button, Spinner } from "@/components/ui";
 import { api, ApiError, type InviteInfo, type Me } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { storage } from "@/lib/utils";
+import { PageIcon } from "@/components/PageIcon";
 
 const workspaceStore = storage<string | null>("workspace", null);
 
@@ -73,15 +74,7 @@ export function Invite() {
       <div className="flex w-full flex-col gap-5">
         <div className="flex items-start gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground">
-            {d.kind === "page" ? (
-              d.page?.icon ? (
-                <span className="text-lg">{d.page.icon}</span>
-              ) : (
-                <FileText className="size-5" />
-              )
-            ) : (
-              <Users className="size-5" />
-            )}
+            {d.kind === "page" ? <PageIcon icon={d.page?.icon} size={20} /> : <Users className="size-5" />}
           </span>
           <div>
             <h1 className="heading">{title}</h1>

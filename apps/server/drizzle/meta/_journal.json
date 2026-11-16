@@ -64,6 +64,13 @@
       "when": 1794857636736,
       "tag": "0008_exotic_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794859476397,
+      "tag": "0009_lucide_icons",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,7 @@ import { TableView } from "./TableView";
 import { TimelineView } from "./TimelineView";
 import { FilterMenu, GroupMenu, PropertiesMenu, SortMenu } from "./ViewMenus";
 import { LayoutMenu } from "./ViewSettings";
+import { PageIcon } from "@/components/PageIcon";
 
 const VIEW_TYPES: ViewType[] = ["table", "board", "gallery", "calendar", "timeline"];
 const ICONS: Record<ViewType, typeof Table2> = {
@@ -348,11 +349,7 @@ function InlineTitle({ data, canEdit }: { data: DatabaseData; canEdit: boolean }
   };
   return (
     <div className="flex items-center gap-1.5">
-      {data.database.icon ? (
-        <span className="text-lg">{data.database.icon}</span>
-      ) : (
-        <Table2 className="size-4 shrink-0 text-muted-foreground" />
-      )}
+      <PageIcon icon={data.database.icon} type="database" size={18} />
       <input
         value={title}
         readOnly={!canEdit}

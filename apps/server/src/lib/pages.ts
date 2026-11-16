@@ -9,6 +9,7 @@ import { positionAt, subtreeIds } from "./tree.js";
 import { snapshot, noteAuthor, versionDoc } from "./versions.js";
 import { notifyCreated, notifyDeleted } from "./webhooks.js";
 import { getTitle, TITLE_TEXT } from "./ydoc.js";
+import { iconPrefix } from "./icons.js";
 
 export const pageSummary = {
   id: pages.id,
@@ -135,7 +136,7 @@ export async function nameDatabaseLinks(markdown: string) {
     .select({ id: pages.id, title: pages.title, icon: pages.icon })
     .from(pages)
     .where(inArray(pages.id, ids));
-  const names = new Map(rows.map((r) => [r.id, `${r.icon ? `${r.icon} ` : ""}${r.title || "Untitled"}`]));
+  const names = new Map(rows.map((r) => [r.id, `${iconPrefix(r.icon)}${r.title || "Untitled"}`]));
   return markdown.replace(/\[Database\]\(\/p\/([0-9a-f-]{36})\)/g, (all, id: string) =>
     names.has(id) ? `[${names.get(id)} (database)](/p/${id})` : all,
   );

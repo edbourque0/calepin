@@ -1,4 +1,4 @@
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { type DragEvent, useState } from "react";
 import { Link } from "react-router";
 import type { DatabaseData, Row, SelectOption, View } from "@/lib/api";
@@ -6,6 +6,7 @@ import { propertyOptions, useDatabaseActions, valuesFromFilters } from "@/lib/da
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CellValue, Tag } from "./cells";
+import { PageIcon } from "@/components/PageIcon";
 
 export function BoardView({
   data,
@@ -100,11 +101,7 @@ export function BoardView({
                 )}
               >
                 <Link to={`/p/${row.id}`} className="flex items-start gap-1.5 text-sm font-medium hover:underline">
-                  {row.icon ? (
-                    <span className="leading-5">{row.icon}</span>
-                  ) : (
-                    <FileText className="mt-0.5 size-[14px] shrink-0 text-muted-foreground" />
-                  )}
+                  <PageIcon icon={row.icon} size={14} className="mt-[3px]" />
                   <span className={cn("min-w-0", !row.title && "text-muted-foreground")}>
                     {row.title || t("page.untitled")}
                   </span>

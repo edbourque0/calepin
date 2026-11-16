@@ -1,10 +1,11 @@
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import type { DatabaseData, Row, View } from "@/lib/api";
 import { useDatabaseActions, valuesFromFilters } from "@/lib/database";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CellValue } from "./cells";
+import { PageIcon } from "@/components/PageIcon";
 
 const GRID = {
   small: "grid-cols-[repeat(auto-fill,minmax(180px,1fr))]",
@@ -51,7 +52,7 @@ export function GalleryView({
                 />
               ) : (
                 <div className="flex size-full items-center justify-center text-3xl text-muted-foreground/60">
-                  {row.icon ?? <FileText className="size-7" strokeWidth={1.5} />}
+                  <PageIcon icon={row.icon} size={30} className="opacity-70" />
                 </div>
               )}
             </div>
@@ -62,7 +63,7 @@ export function GalleryView({
               onClick={(e) => e.stopPropagation()}
               className="flex min-w-0 items-center gap-1.5 text-sm font-medium"
             >
-              {row.icon && !(covers && !row.cover) && <span>{row.icon}</span>}
+              {row.icon && !(covers && !row.cover) && <PageIcon icon={row.icon} size={14} />}
               <span className={cn("truncate", !row.title && "text-muted-foreground")}>
                 {row.title || t("page.untitled")}
               </span>

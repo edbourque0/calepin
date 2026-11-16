@@ -1,4 +1,3 @@
-import { FileText } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui";
@@ -17,6 +16,7 @@ import {
 import { localeOf, useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
 import { NeedsDate } from "./ViewSettings";
+import { PageIcon } from "@/components/PageIcon";
 
 type Scale = "day" | "week" | "month";
 const DAY_PX: Record<Scale, number> = { day: 40, week: 18, month: 5 };
@@ -171,7 +171,7 @@ export function TimelineView({
               style={{ height: ROW_H }}
               className="flex items-center gap-1.5 border-b border-border px-2.5 text-[13px] last:border-b-0 hover:bg-accent"
             >
-              {row.icon ? <span>{row.icon}</span> : <FileText className="size-3.5 shrink-0 text-muted-foreground" />}
+              <PageIcon icon={row.icon} size={14} />
               <span className={cn("truncate", !row.title && "text-muted-foreground")}>
                 {row.title || t("page.untitled")}
               </span>

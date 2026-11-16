@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { usePages } from "@/lib/workspace";
 import { PropertyIcon, TAG_COLORS } from "./cells";
 import { FormulaEditor } from "./FormulaEditor";
+import { iconText } from "@/lib/icons";
 
 const ROLLUP_FNS: RollupFn[] = [
   "count",
@@ -368,7 +369,7 @@ export function AddPropertyMenu({ data, onClose }: { data: DatabaseData; onClose
               </option>
               {databases.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.icon ? `${d.icon} ` : ""}
+                  {iconText(d.icon) ? `${iconText(d.icon)} ` : ""}
                   {d.title || t("page.untitled")}
                 </option>
               ))}

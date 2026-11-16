@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, FileText, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { type DragEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button, IconButton } from "@/components/ui";
@@ -19,6 +19,7 @@ import { localeOf, useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
 import { CellValue } from "./cells";
 import { NeedsDate } from "./ViewSettings";
+import { PageIcon } from "@/components/PageIcon";
 
 /** Month grid; rows sit on their date (or span start → end). Drag a row to another day to move it. */
 export function CalendarView({
@@ -197,11 +198,7 @@ export function CalendarView({
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-1 font-medium">
-                          {row.icon ? (
-                            <span>{row.icon}</span>
-                          ) : (
-                            <FileText className="size-3 shrink-0 text-muted-foreground" />
-                          )}
+                          <PageIcon icon={row.icon} size={12} />
                           <span className={cn("truncate", !row.title && "text-muted-foreground")}>
                             {row.title || t("page.untitled")}
                           </span>

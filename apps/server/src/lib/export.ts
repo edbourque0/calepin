@@ -6,6 +6,7 @@ import { pages, workspaces } from "../db/schema.js";
 import { docToMarkdown } from "./blocks.js";
 import { nameDatabaseLinks } from "./pages.js";
 import { formatValue, getDatabase, getRows, peopleNames, personIds, type Property } from "./database.js";
+import { iconPrefix } from "./icons.js";
 
 /** Safe file name, keeping accents (Québec stays Québec). */
 export function fileName(title: string, fallback = "Sans titre") {
@@ -36,7 +37,7 @@ export async function pageToMarkdown(page: {
   row?: { props: Record<string, unknown> };
 }) {
   const body = await nameDatabaseLinks(await docToMarkdown(docFrom(page.yjsState)));
-  const heading = `# ${page.icon ? `${page.icon} ` : ""}${page.title || "Sans titre"}`;
+  const heading = `# ${iconPrefix(page.icon)}${page.title || "Sans titre"}`;
   let front = "";
   if (page.properties?.length && page.row) {
     const lines = page.properties

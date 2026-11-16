@@ -33,6 +33,7 @@ import { emitDatabase } from "./lib/events.js";
 import type { AppUser } from "./lib/tokens.js";
 import { canEdit, getMembership, getPageAccess } from "./lib/workspaces.js";
 import { searchPages } from "./routes/pages.js";
+import { iconPrefix } from "./lib/icons.js";
 
 const pageUrl = (id: string) => `${env.PUBLIC_URL.replace(/\/$/, "")}/p/${id}`;
 
@@ -202,7 +203,7 @@ function buildServer(user: AppUser) {
         }
       }
       const header = [
-        `# ${page?.icon ? `${page.icon} ` : ""}${page?.title || "Untitled"}`,
+        `# ${iconPrefix(page?.icon)}${page?.title || "Untitled"}`,
         "",
         `- id: ${page_id}`,
         `- parent_id: ${page?.parentId ?? "none"}`,
@@ -227,7 +228,13 @@ function buildServer(user: AppUser) {
         markdown: z.string().optional().describe("Page content in Markdown"),
         parent_id: z.string().uuid().optional().describe("Create as a subpage of this page"),
         workspace_id: z.string().uuid().optional().describe("Ignored when parent_id is given"),
-        icon: z.string().max(16).optional().describe("A single emoji"),
+        icon: z
+          .string()
+          .max(64)
+          .optional()
+          .describe(
+            'An emoji, or a Lucide icon as "lucide:<PascalCaseName>" with an optional colour, e.g. "lucide:Rocket:blue" (gray, amber, green, blue, rose, violet, orange, teal)',
+          ),
       },
     },
     guard(async ({ title, markdown, parent_id, workspace_id, icon }) => {
@@ -284,7 +291,14 @@ function buildServer(user: AppUser) {
       inputSchema: {
         page_id: z.string().uuid(),
         title: z.string().min(1).max(500).optional(),
-        icon: z.string().max(16).nullable().optional(),
+        icon: z
+          .string()
+          .max(64)
+          .nullable()
+          .optional()
+          .describe(
+            'An emoji, or a Lucide icon as "lucide:<PascalCaseName>" with an optional colour, e.g. "lucide:Rocket:blue" (gray, amber, green, blue, rose, violet, orange, teal)',
+          ),
         parent_id: z.string().uuid().nullable().optional().describe("New parent; null moves the page to the top level"),
       },
     },
@@ -354,7 +368,13 @@ function buildServer(user: AppUser) {
         title: z.string().min(1).max(500),
         parent_id: z.string().uuid().optional(),
         workspace_id: z.string().uuid().optional(),
-        icon: z.string().max(16).optional(),
+        icon: z
+          .string()
+          .max(64)
+          .optional()
+          .describe(
+            'An emoji, or a Lucide icon as "lucide:<PascalCaseName>" with an optional colour, e.g. "lucide:Rocket:blue" (gray, amber, green, blue, rose, violet, orange, teal)',
+          ),
         properties: z
           .array(
             z.object({
@@ -513,7 +533,7 @@ async function describeDatabase(databaseId: string, limit: number) {
     ),
   ];
   return [
-    `# ${database.page.icon ? `${database.page.icon} ` : ""}${database.page.title || "Untitled"} (database)`,
+    `# ${iconPrefix(database.page.icon)}${database.page.title || "Untitled"} (database)`,
     "",
     `- id: ${databaseId}`,
     `- url: ${pageUrl(databaseId)}`,

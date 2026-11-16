@@ -4,6 +4,7 @@ import { TopBar, useShell } from "@/components/AppShell";
 import { Button } from "@/components/ui";
 import { useI18n, useRelativeTime } from "@/lib/i18n";
 import { usePageActions, usePageIndex, usePages, useWorkspace } from "@/lib/workspace";
+import { PageIcon } from "@/components/PageIcon";
 
 export function Home() {
   const { t } = useI18n();
@@ -85,11 +86,7 @@ export function Home() {
                     className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent ${i > 0 ? "border-t border-border" : ""}`}
                   >
                     <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                      {p.icon ? (
-                        <span className="text-base leading-none">{p.icon}</span>
-                      ) : (
-                        <FileText className="size-4" />
-                      )}
+                      <PageIcon icon={p.icon} type={p.type} size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{p.title || t("page.untitled")}</span>

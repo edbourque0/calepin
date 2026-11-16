@@ -38,6 +38,7 @@ import {
 import { formatDate, formatNumber, isFormulaError, optionFor, propertyOptions, READ_ONLY_TYPES } from "@/lib/database";
 import { localeOf, useI18n } from "@/lib/i18n";
 import { cn, colorFor, initials } from "@/lib/utils";
+import { PageIcon } from "@/components/PageIcon";
 
 export const TAG_COLORS: TagColor[] = ["gray", "amber", "green", "blue", "rose"];
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -190,11 +191,7 @@ export function CellValue({ prop, row, data }: { prop: Property; row: Row; data:
               onClick={(e) => e.stopPropagation()}
               className="inline-flex max-w-full items-center gap-1 rounded-sm px-1 underline decoration-input underline-offset-4 hover:bg-accent"
             >
-              {r.icon ? (
-                <span className="text-xs">{r.icon}</span>
-              ) : (
-                <FileText className="size-3 shrink-0 text-muted-foreground" />
-              )}
+              <PageIcon icon={r.icon} size={12} />
               <span className="truncate">{r.title || "—"}</span>
             </Link>
           ))}
@@ -546,7 +543,7 @@ function RelationPicker({
               onClick={() => set(on ? ids.filter((x) => x !== r.id) : [...ids, r.id])}
               className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-accent"
             >
-              {r.icon ? <span>{r.icon}</span> : <FileText className="size-4 text-muted-foreground" />}
+              <PageIcon icon={r.icon} size={16} />
               <span className="flex-1 truncate">{r.title || t("page.untitled")}</span>
               {on && <Check className="size-4" />}
             </button>
@@ -599,7 +596,7 @@ export function TitleCell({
   return (
     <div className="group/title flex min-h-9 items-center gap-1.5 px-2">
       <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-        {row.icon ? <span className="text-sm leading-none">{row.icon}</span> : <FileText className="size-[14px]" />}
+        <PageIcon icon={row.icon} size={14} />
       </span>
       <span
         role={canEdit ? "button" : undefined}

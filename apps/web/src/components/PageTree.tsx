@@ -1,10 +1,11 @@
-import { ChevronRight, FileText, Plus, Table2, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { type DragEvent, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import type { PageSummary, SharedPage } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { cn, storage } from "@/lib/utils";
 import { type PageIndex, usePageActions, usePageIndex, useSharedIndex, useWorkspace } from "@/lib/workspace";
+import { PageIcon } from "@/components/PageIcon";
 
 const expandedStore = storage<string[]>("expanded", []);
 type DropZone = "before" | "inside" | "after";
@@ -185,13 +186,7 @@ function TreeNode(props: NodeProps) {
                 <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
               </span>
               <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                {page.icon ? (
-                  <span className="text-[14px] leading-none">{page.icon}</span>
-                ) : page.type === "database" ? (
-                  <Table2 className="size-4" />
-                ) : (
-                  <FileText className="size-4" />
-                )}
+                <PageIcon icon={page.icon} type={page.type} size={16} />
               </span>
               <span className="flex-1 truncate">{page.title || t("page.untitled")}</span>
               <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">

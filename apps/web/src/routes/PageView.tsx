@@ -11,7 +11,7 @@ import {
   Lock,
   RefreshCw,
   Share2,
-  SmilePlus,
+  Shapes,
   Sparkles,
 } from "lucide-react";
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -21,7 +21,7 @@ import { TopBar } from "@/components/AppShell";
 import type { EditorHandle } from "@/components/Editor";
 
 const Editor = lazy(() => import("@/components/Editor").then((m) => ({ default: m.Editor })));
-import { EmojiPicker } from "@/components/EmojiPicker";
+import { IconPicker } from "@/components/IconPicker";
 import { DatabaseView } from "@/components/database/DatabaseView";
 import { RowProperties } from "@/components/database/RowProperties";
 import { SharePanel } from "@/components/SharePanel";
@@ -36,6 +36,7 @@ import { useI18n } from "@/lib/i18n";
 import { cn, initials, storage } from "@/lib/utils";
 import { api, type PageMeta, type PageSummary } from "@/lib/api";
 import { usePageActions, usePageIndex, usePages, useSharedIndex, useSharedPages, useWorkspace } from "@/lib/workspace";
+import { PageIcon } from "@/components/PageIcon";
 
 export const lastPageStore = storage<string | null>("last-page", null);
 
@@ -266,7 +267,7 @@ function PageTopBar({
               i === crumbs.length - 1 ? "font-medium text-foreground" : "text-muted-foreground max-sm:hidden",
             )}
           >
-            {c.icon && <span className="leading-none">{c.icon}</span>}
+            <PageIcon icon={c.icon} size={14} fallback={false} />
             <span className="truncate">{c.title || t("page.untitled")}</span>
           </Link>
         </Fragment>
@@ -450,9 +451,9 @@ function PageHeader({
           ref={iconBtn}
           disabled={readOnly}
           onClick={() => setPicker(true)}
-          className="mb-3 flex size-[72px] items-center justify-center rounded-lg text-[56px] leading-none transition-colors hover:bg-accent"
+          className="mb-3 flex size-[72px] items-center justify-center rounded-lg transition-colors hover:bg-accent disabled:hover:bg-transparent"
         >
-          {page.icon}
+          <PageIcon icon={page.icon} size={56} />
         </button>
       ) : (
         !readOnly && (
@@ -462,18 +463,14 @@ function PageHeader({
               onClick={() => setPicker(true)}
               className="flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-muted-foreground opacity-0 transition-all group-hover/header:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 max-md:opacity-100"
             >
-              <SmilePlus className="size-4" />
+              <Shapes className="size-4" />
               {t("page.addIcon")}
             </button>
           </div>
         )
       )}
       <Popover anchor={iconBtn} open={picker} onClose={() => setPicker(false)}>
-        <EmojiPicker
-          onPick={pick}
-          onRemove={page?.icon ? () => pick(null) : undefined}
-          removeLabel={t("page.removeIcon")}
-        />
+        <IconPicker value={page?.icon} onPick={pick} onRemove={page?.icon ? () => pick(null) : undefined} />
       </Popover>
       <textarea
         ref={area}
