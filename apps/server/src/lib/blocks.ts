@@ -1,7 +1,9 @@
-import { BlockNoteSchema, createBlockSpec } from "@blocknote/core";
+import { BlockNoteSchema, createBlockSpec, createCodeBlockSpec } from "@blocknote/core";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { getDocument } from "@blocknote/server-util/dom";
 import type * as Y from "yjs";
+import { CALLOUT_KEYWORD, CALLOUT_TONES, quotesToCallouts, type CalloutTone } from "./callouts.js";
+import { CODE_LANGUAGES, DEFAULT_CODE_LANGUAGE, normaliseCodeLanguages } from "./codeLanguages.js";
 import { BLOCKS_FRAGMENT } from "./ydoc.js";
 
 /**
@@ -29,7 +31,45 @@ const DatabaseBlock = createBlockSpec(
   },
 );
 
-export const schema = BlockNoteSchema.create().extend({ blockSpecs: { database: DatabaseBlock() } });
+/**
+ * Callout (must match the web client's CalloutBlock). Exported as a GitHub alert quote
+ * ("> [!WARNING]"), which Markdown import turns back into a callout.
+ */
+const CalloutBlock = createBlockSpec(
+  {
+    type: "callout",
+    propSchema: { tone: { default: "info" as CalloutTone, values: CALLOUT_TONES } },
+    content: "inline",
+  },
+  {
+    render: (block) => {
+      const doc = globalThis.document ?? getDocument();
+      const dom = doc.createElement("div");
+      dom.className = `calepin-callout calepin-callout-${block.props.tone}`;
+      const contentDOM = doc.createElement("div");
+      contentDOM.className = "calepin-callout-body";
+      dom.appendChild(contentDOM);
+      return { dom, contentDOM };
+    },
+    toExternalHTML: (block) => {
+      const doc = globalThis.document ?? getDocument();
+      const dom = doc.createElement("blockquote");
+      dom.dataset.calloutTone = block.props.tone;
+      const marker = doc.createElement("p");
+      marker.textContent = `[!${CALLOUT_KEYWORD[block.props.tone] ?? "NOTE"}]`;
+      const contentDOM = doc.createElement("p");
+      dom.append(marker, contentDOM);
+      return { dom, contentDOM };
+    },
+  },
+);
+
+/** Code blocks know Calepin's languages, so ```ps1 is stored as "powershell" and exported back. */
+const codeBlock = createCodeBlockSpec({ defaultLanguage: DEFAULT_CODE_LANGUAGE, supportedLanguages: CODE_LANGUAGES });
+
+export const schema = BlockNoteSchema.create().extend({
+  blockSpecs: { codeBlock, database: DatabaseBlock(), callout: CalloutBlock() },
+});
 
 /** BlockNote running on the server (jsdom), for Markdown/HTML conversion of page content. */
 let instance: ServerBlockNoteEditor<any, any, any> | null = null;
@@ -65,7 +105,7 @@ export async function docToHTML(doc: Y.Doc) {
 }
 
 export async function markdownToBlocks(markdown: string) {
-  return editor().tryParseMarkdownToBlocks(markdown);
+  return normaliseCodeLanguages(quotesToCallouts(await editor().tryParseMarkdownToBlocks(markdown)));
 }
 
 /** Replaces (or appends to) the BlockNote content of a document with parsed Markdown. */

@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { db } from "../db/index.js";
 import { pages, user } from "../db/schema.js";
 import { docToHTML } from "../lib/blocks.js";
+import { highlightCode, renderCallouts } from "../lib/highlight.js";
 import { formatValue, getDatabase, getRows, peopleNames, personIds } from "../lib/database.js";
 import { TITLE_TEXT } from "../lib/ydoc.js";
 import { signFileLinks } from "./files.js";
@@ -34,7 +35,8 @@ export function publicRoutes(appCss: string | null) {
     if (page.state) Y.applyUpdate(doc, page.state);
     const title = doc.getText(TITLE_TEXT).toString().trim() || page.title || "Untitled";
     // Visitors have no session: give them time-limited links to the page's files.
-    const body = await embedDatabases(signFileLinks(await docToHTML(doc)), page.id, page.workspaceId);
+    const html = renderCallouts(await highlightCode(await docToHTML(doc)));
+    const body = await embedDatabases(signFileLinks(html), page.id, page.workspaceId);
     const updated = page.updatedAt.toISOString().slice(0, 10);
 
     c.header("Cache-Control", "public, max-age=30");
@@ -125,7 +127,19 @@ body { background: var(--background); color: var(--foreground); }
 .pub-body blockquote { font-family: var(--font-serif); font-size: 18px; line-height: 28px; font-style: italic; border-left: 3px solid var(--border); padding-left: 16px; }
 .pub-body code { font-family: var(--font-mono); font-size: 13px; background: var(--muted); border-radius: 6px; padding: 1px 4px; }
 .pub-body pre { background: var(--muted); border-radius: 10px; padding: 12px 16px; overflow-x: auto; }
-.pub-body pre code { background: none; padding: 0; }
+.pub-body pre code { background: none; padding: 0; font-size: 13px; line-height: 20px; }
+.pub-body pre.shiki { background: var(--muted) !important; border: 1px solid var(--border); }
+.pub-body .shiki span { color: var(--shiki-light); }
+[data-theme="dark"] .pub-body .shiki span { color: var(--shiki-dark); }
+.pub-body .callout { display: flex; gap: 12px; padding: 12px 16px; border-radius: 10px; background: var(--muted); }
+.pub-body .callout-icon { flex: none; display: flex; margin-top: 4px; }
+.pub-body .callout-body { min-width: 0; }
+.pub-body .callout-info .callout-icon { color: var(--ribbon); }
+.pub-body .callout-tip { background: var(--highlight); }
+.pub-body .callout-warning { background: var(--tag-amber); }
+.pub-body .callout-warning .callout-icon { color: var(--tag-amber-foreground); }
+.pub-body .callout-danger { background: var(--tag-rose); }
+.pub-body .callout-danger .callout-icon { color: var(--tag-rose-foreground); }
 .pub-body img { max-width: 100%; border-radius: 10px; }
 .pub-body table { border-collapse: collapse; width: 100%; font-size: 14px; }
 .pub-body td, .pub-body th { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }

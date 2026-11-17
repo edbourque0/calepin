@@ -155,7 +155,7 @@ function buildServer(user: AppUser) {
     {
       instructions:
         "Calepin is the user's self-hosted notebook. Pages are organised in a tree inside workspaces. " +
-        "Page content is read and written as Markdown. Databases are tables of row pages with typed properties: " +
+        "Page content is read and written as Markdown (code blocks keep their language after ```; callouts are written as GitHub alerts: > [!NOTE], [!TIP], [!WARNING], [!CAUTION]). Databases are tables of row pages with typed properties: " +
         "read them with get_database, then use add_database_row / update_database_row; shape them with " +
         "add_database_property (including formulas, relations, rollups) and add_database_view (table, board, gallery, " +
         "calendar, timeline). create_database with embed: true shows the database inside its parent page. " +

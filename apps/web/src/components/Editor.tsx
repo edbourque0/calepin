@@ -1,12 +1,21 @@
 import "@blocknote/mantine/style.css";
-import { BlockNoteSchema, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  createCodeBlockSpec,
+  filterSuggestionItems,
+  insertOrUpdateBlockForSlashMenu,
+} from "@blocknote/core";
 import { en, fr } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
 import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
-import { Table2 } from "lucide-react";
+import { Info, Table2 } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { CalloutBlock } from "@/components/CalloutBlock";
 import { DatabaseBlock } from "@/components/database/DatabaseBlock";
+import { quotesToCallouts } from "@/lib/callouts";
+import { CODE_LANGUAGES, DEFAULT_CODE_LANGUAGE, normaliseCodeLanguages } from "@/lib/codeLanguages";
+import { syntaxHighlighter } from "@/lib/highlighter";
 import { BLOCKS_FRAGMENT, type Collab } from "@/lib/collab";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -15,8 +24,26 @@ import { usePageActions, useWorkspace } from "@/lib/workspace";
 
 const locales = { en, fr };
 
-/** BlockNote's blocks plus Calepin's inline database. Must match apps/server/src/lib/blocks.ts. */
-export const schema = BlockNoteSchema.create().extend({ blockSpecs: { database: DatabaseBlock() } });
+/** The callout goes right after the quote in BlockNote's "Basic blocks" group; the database at the end. */
+function withCallout<T extends { key?: string; group?: string }>(items: T[], callout: T, database: T): T[] {
+  const quote = items.findIndex((i) => i.key === "quote");
+  const out = [...items];
+  if (quote === -1) out.push(callout);
+  else out.splice(quote + 1, 0, { ...callout, group: items[quote]!.group });
+  return [...out, database];
+}
+
+/**
+ * BlockNote's blocks plus Calepin's inline database and callout, and code blocks that know
+ * Calepin's languages. Must match apps/server/src/lib/blocks.ts.
+ */
+export const schema = BlockNoteSchema.create().extend({
+  blockSpecs: {
+    codeBlock: createCodeBlockSpec({ defaultLanguage: DEFAULT_CODE_LANGUAGE, supportedLanguages: CODE_LANGUAGES }),
+    database: DatabaseBlock(),
+    callout: CalloutBlock(),
+  },
+});
 
 export type EditorHandle = {
   focusStart: () => void;
@@ -60,6 +87,7 @@ export const Editor = forwardRef<EditorHandle, Props>(({ pageId, workspaceId, co
   const editor = useCreateBlockNote(
     withCollaboration({
       schema,
+      extensions: [syntaxHighlighter],
       uploadFile: (file: File) => uploadFile(pageId, file),
       dictionary: {
         ...locales[lang],
@@ -83,7 +111,7 @@ export const Editor = forwardRef<EditorHandle, Props>(({ pageId, workspaceId, co
     },
     getSelectedText: () => editor.getSelectedText(),
     insertMarkdown: async (markdown, mode) => {
-      const blocks = await editor.tryParseMarkdownToBlocks(markdown);
+      const blocks = normaliseCodeLanguages(quotesToCallouts(await editor.tryParseMarkdownToBlocks(markdown)));
       if (!blocks.length) return;
       const selected = editor.getSelection()?.blocks;
       if (mode === "replace" && selected?.length) {
@@ -118,12 +146,20 @@ export const Editor = forwardRef<EditorHandle, Props>(({ pageId, workspaceId, co
     },
   };
 
+  const calloutItem = {
+    title: t("slash.callout"),
+    subtext: t("slash.calloutHint"),
+    aliases: ["callout", "note", "info", "tip", "warning", "alert", "admonition", "encadré", "remarque", "astuce"],
+    icon: <Info size={18} />,
+    onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { tone: "info" } }),
+  };
+
   return (
     <BlockNoteView editor={editor} theme={theme} editable={!readOnly} slashMenu={false} className="calepin-editor">
       <SuggestionMenuController
         triggerCharacter="/"
         getItems={async (query) =>
-          filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), databaseItem], query)
+          filterSuggestionItems(withCallout(getDefaultReactSlashMenuItems(editor), calloutItem, databaseItem), query)
         }
       />
     </BlockNoteView>

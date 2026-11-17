@@ -29,6 +29,10 @@ server and an optional AI assistant — as an offline-ready PWA. Runs on your ow
   any S3-compatible storage; restore from the app or the command line
 - **Images and files**: drop, paste or upload images, files, video and audio into any page. Stored on the server or
   in a private S3-compatible bucket (Wasabi, AWS, MinIO…) configured in Settings → Storage
+- **Code blocks with syntax colours**: Shell, PowerShell, SQL, Python, C#, JavaScript/TypeScript, JSON, YAML,
+  Dockerfile, Terraform, Bicep, KQL, Go, Rust and ~35 more, in the editor and on published pages
+- **Callouts**: info, tip, warning and danger notes (`/callout`). In Markdown they are GitHub / Obsidian alerts
+  (`> [!WARNING]`), so imports, exports and AI agents keep them
 - **Export**: any page as Markdown, any database as CSV, a whole workspace as a ZIP
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
 - **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes —
@@ -163,7 +167,8 @@ page you're on. It runs in the background, so large exports are fine.
   databases become Calepin databases with their rows and row content, links between pages and images follow.
 - **Obsidian / Markdown folders**: zip the vault or folder. Folders become pages (a folder note `X/X.md`,
   `index.md` or `README.md` is the folder's own content), `[[links]]`, `[[note|alias]]`, `![[image.png]]` and
-  relative Markdown links are converted, front matter becomes a property list at the top of the page.
+  relative Markdown links are converted, front matter becomes a property list at the top of the page, and
+  callouts (`> [!note]`) become Calepin callouts.
 - **CSV**: becomes a database; the first column is the title and column types (number, date, checkbox, URL,
   email, select, multi-select, text) are detected.
 
