@@ -391,6 +391,7 @@ function TokensTab() {
 
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">{t("tokens.mcp")}</h3>
+        <p className="text-[13px] text-muted-foreground">{t("tokens.mcpOauthHint")}</p>
         <p className="text-[13px] text-muted-foreground">{t("tokens.mcpHint")}</p>
         <div className="flex items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs">{mcpUrl}</code>

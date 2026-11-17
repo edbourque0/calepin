@@ -16,6 +16,7 @@ import {
 } from "./db/schema.js";
 import { env } from "./env.js";
 import { resolveUser } from "./http.js";
+import { resourceMetadataUrl } from "./routes/oauth.js";
 import {
   createPage,
   editDocument,
@@ -1077,16 +1078,18 @@ async function describeDatabase(databaseId: string, limit: number) {
 }
 
 /**
- * Streamable HTTP MCP endpoint (stateless). Authenticate with a personal access token:
- * `Authorization: Bearer cp_…` (created in Settings → API tokens).
+ * Streamable HTTP MCP endpoint (stateless). Authenticate with OAuth (see routes/oauth.ts) or a personal
+ * access token: `Authorization: Bearer cp_…` (created in Settings → API tokens).
  */
 export const mcpRoutes = new Hono().all("/mcp", async (c) => {
   const resolved = await resolveUser(c.req.raw.headers);
   if (!resolved) {
+    // Points OAuth-capable clients (Claude…) to the sign-in flow; others can still send an API token.
+    c.header("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadataUrl()}"`);
     return c.json(
       {
         jsonrpc: "2.0",
-        error: { code: -32001, message: "Unauthorized: use Authorization: Bearer <Calepin API token>" },
+        error: { code: -32001, message: "Unauthorized: sign in with OAuth, or send Authorization: Bearer <Calepin API token>" },
         id: null,
       },
       401,

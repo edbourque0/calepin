@@ -11,6 +11,7 @@ import { checkEpoch, WorkspaceProvider } from "./lib/workspace";
 import { Home } from "./routes/Home";
 import { Invite } from "./routes/Invite";
 import { Login } from "./routes/Login";
+import { OAuthConsent } from "./routes/OAuthConsent";
 import { PageView } from "./routes/PageView";
 
 const queryClient = new QueryClient({
@@ -45,6 +46,7 @@ function AuthGate() {
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   { path: "/invite/:token", element: <Invite /> },
+  { path: "/oauth/authorize", element: <OAuthConsent /> },
   {
     path: "/",
     element: <AuthGate />,

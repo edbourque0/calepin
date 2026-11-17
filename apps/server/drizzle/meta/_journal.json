@@ -71,6 +71,13 @@
       "when": 1794859476397,
       "tag": "0009_lucide_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794922231471,
+      "tag": "0010_oauth_clients",
+      "breakpoints": true
     }
   ]
 }

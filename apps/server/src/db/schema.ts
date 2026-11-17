@@ -209,6 +209,19 @@ export const apiTokens = pgTable(
   (t) => [index("api_tokens_user_idx").on(t.userId)],
 );
 
+/**
+ * OAuth clients (MCP clients such as Claude), registered dynamically (RFC 7591).
+ * Access tokens they obtain are ordinary API tokens, listed and revocable in Settings.
+ */
+export const oauthClients = pgTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  /** SHA-256 of the client secret, for confidential clients; null for public (PKCE-only) clients. */
+  secretHash: text("secret_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ---------- Databases ---------- */
 
 export type PropertyType =

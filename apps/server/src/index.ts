@@ -23,6 +23,7 @@ import { pageRoutes } from "./routes/pages.js";
 import { publicRoutes } from "./routes/public.js";
 import { sharingRoutes } from "./routes/sharing.js";
 import { tokenRoutes } from "./routes/tokens.js";
+import { oauthApiRoutes, oauthRoutes } from "./routes/oauth.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { aiRoutes } from "./routes/ai.js";
 import { importRoutes } from "./routes/imports.js";
@@ -101,11 +102,13 @@ const api = new Hono<AppEnv>()
   .route("/", webhookRoutes)
   .route("/", aiRoutes)
   .route("/", importRoutes)
-  .route("/", tokenRoutes);
+  .route("/", tokenRoutes)
+  .route("/", oauthApiRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
-/* ----- MCP server (Streamable HTTP, bearer token) ----- */
+/* ----- MCP server (Streamable HTTP; bearer token, or OAuth for clients like Claude) ----- */
+app.route("/", oauthRoutes);
 app.route("/", mcpRoutes);
 
 /* ----- Web app (built SPA) and public pages ----- */

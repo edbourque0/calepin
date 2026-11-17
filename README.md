@@ -35,7 +35,7 @@ server and an optional AI assistant — as an offline-ready PWA. Runs on your ow
   (`> [!WARNING]`), so imports, exports and AI agents keep them
 - **Export**: any page as Markdown, any database as CSV, a whole workspace as a ZIP
 - **Live tree**: the sidebar updates instantly when someone (or an agent) adds, renames or moves pages
-- **API tokens + MCP server**: let AI assistants and automations (n8n, scripts) read and write your notes —
+- **API tokens + MCP server**: connect Claude in one click (OAuth sign-in), or let AI assistants and automations (n8n, scripts) read and write your notes —
   see the [REST API reference](docs/API.md)
 - **Webhooks**: signed HTTP notifications when pages or rows change (Settings → Webhooks)
 - **AI assistant** (`Ctrl/⌘ J`, optional): summarize, improve, shorten, continue or translate, and ask questions
@@ -125,7 +125,15 @@ Version history is thinned every night: every version from the last day, one per
 ## MCP server
 
 Calepin exposes an [MCP](https://modelcontextprotocol.io) server at `PUBLIC_URL/mcp` (Streamable HTTP, stateless).
-Create a token in **Settings → API tokens**, then add the server to your client:
+
+**Claude (and other OAuth clients)**: add `https://notes.example.com/mcp` as a custom connector
+(Claude: Settings → Connectors → Add custom connector) and click *Connect*. Calepin asks you to sign in and
+approve the app; that's it. Under the hood this is OAuth 2.1 with dynamic client registration and PKCE
+(`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/oauth/register`,
+`/oauth/authorize`, `/oauth/token`). The app gets an API token named after it, which you can revoke in
+**Settings → API tokens**. `PUBLIC_URL` must be the address the client reaches Calepin at.
+
+**Other clients**: create a token in **Settings → API tokens** and send it as a header:
 
 ```json
 {
