@@ -137,7 +137,10 @@ export function DatabaseView({ databaseId, inline = false }: { databaseId: strin
     <div className="flex flex-col gap-2">
       {inline && <InlineTitle data={data} canEdit={canEdit} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
-        <div role="tablist" className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        <div
+          role="tablist"
+          className="scrollbar-none flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto max-sm:basis-full"
+        >
           {data.views.map((v) => {
             const active = v.id === view.id;
             return (

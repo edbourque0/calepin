@@ -189,7 +189,12 @@ function TreeNode(props: NodeProps) {
                 <PageIcon icon={page.icon} type={page.type} size={16} />
               </span>
               <span className="flex-1 truncate">{page.title || t("page.untitled")}</span>
-              <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
+              <span
+                className={cn(
+                  "flex items-center opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:hidden",
+                  isActive && "pointer-coarse:flex pointer-coarse:opacity-100",
+                )}
+              >
                 {editable && (
                   <span
                     role="button"

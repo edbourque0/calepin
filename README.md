@@ -70,6 +70,7 @@ Calepin works behind a reverse proxy or Cloudflare Tunnel; it needs WebSockets o
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PREFIX` | — | Off-site copy of backups |
 | `VERSION_RETENTION_DAYS` | `90` | How long page versions are kept |
 | `MAX_UPLOAD_MB` | `50` | Maximum size of an uploaded file |
+| `MAX_IMPORT_MB` | `500` | Maximum size of an import (zip) |
 
 For OIDC, register the redirect URI `PUBLIC_URL/api/auth/callback/oidc` with your identity provider.
 
@@ -152,6 +153,20 @@ a page, Calepin keeps a version of it.
 
 The same tokens work for the REST API (`Authorization: Bearer cp_…` on any `/api` route).
 
+## Import
+
+**Import** in the sidebar takes a `.zip`, a `.md` or a `.csv`, into the top level of the workspace or inside the
+page you're on. It runs in the background, so large exports are fine.
+
+- **Notion**: Settings → Export all workspace content (or ••• → Export on one page), format *Markdown & CSV*,
+  *Include subpages*. Import the zip as is (Notion's nested `Part-1.zip` files are handled). Pages keep their tree,
+  databases become Calepin databases with their rows and row content, links between pages and images follow.
+- **Obsidian / Markdown folders**: zip the vault or folder. Folders become pages (a folder note `X/X.md`,
+  `index.md` or `README.md` is the folder's own content), `[[links]]`, `[[note|alias]]`, `![[image.png]]` and
+  relative Markdown links are converted, front matter becomes a property list at the top of the page.
+- **CSV**: becomes a database; the first column is the title and column types (number, date, checkbox, URL,
+  email, select, multi-select, text) are detected.
+
 ## AI assistant
 
 Off until an administrator sets it up in **Settings → AI**. Pick a provider, check the URL and model, add a key
@@ -199,5 +214,5 @@ After changing `apps/server/src/db/schema.ts`, run `pnpm db:generate` to create 
 2. ~~Collaboration — sharing and permissions, multiple users, public pages, MCP server~~
 3. ~~Databases — properties, table/board views, relations, rollups~~
 4. ~~Safety — version history, built-in backup/restore, export~~
-5. Import & mobile polish — Notion import, Markdown import
+5. ~~Import & mobile polish — Notion import, Markdown / Obsidian import, phone layout~~
 6. ~~Extras — formulas, calendar/gallery/timeline views, inline databases, API/webhooks, AI~~

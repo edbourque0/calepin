@@ -49,7 +49,7 @@ export function Home() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("app.tagline")}</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-4">
           <StatCard icon={<Layers className="size-4" />} label={t("home.pages")} value={pages.length} />
           <StatCard icon={<Clock className="size-4" />} label={t("home.today")} value={editedToday} />
           <StatCard icon={<CalendarDays className="size-4" />} label={t("home.thisWeek")} value={editedWeek} />
@@ -113,12 +113,14 @@ export function Home() {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icon}
-        {label}
+    <div className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm sm:p-5">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+        <span className="max-sm:hidden">{icon}</span>
+        <span className="truncate">{label}</span>
       </div>
-      <div className="mt-3 text-[32px] leading-10 font-semibold tracking-tight tabular-nums">{value}</div>
+      <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:mt-3 sm:text-[32px] sm:leading-10">
+        {value}
+      </div>
     </div>
   );
 }

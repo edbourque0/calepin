@@ -425,3 +425,26 @@ body {
     padding-inline: 24px;
   }
 }
+
+/* ---------- Touch screens ---------- */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  /* The slash and mention menus: compact rows, no keyboard shortcuts. */
+  .bn-container.calepin-editor .bn-suggestion-menu {
+    max-height: min(320px, 45vh);
+  }
+  .bn-container.calepin-editor .bn-suggestion-menu-item {
+    min-height: 44px;
+    padding-block: 4px;
+  }
+  .bn-container.calepin-editor .bn-suggestion-menu-item [data-position="right"],
+  .bn-container.calepin-editor .bn-mt-suggestion-menu-item-subtitle {
+    display: none;
+  }
+}

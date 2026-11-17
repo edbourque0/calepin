@@ -77,9 +77,18 @@ export function AppShell() {
         setMobileOpen(false);
         setDialog("search");
       }}
-      onTrash={() => setDialog("trash")}
-      onImport={() => setDialog("import")}
-      onSettings={() => setDialog("settings")}
+      onTrash={() => {
+        setMobileOpen(false);
+        setDialog("trash");
+      }}
+      onImport={() => {
+        setMobileOpen(false);
+        setDialog("import");
+      }}
+      onSettings={() => {
+        setMobileOpen(false);
+        setDialog("settings");
+      }}
     />
   );
 

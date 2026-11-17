@@ -74,7 +74,7 @@ export function TableView({
       <table className="w-max min-w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border">
-            <th className="sticky left-0 z-[1] w-[280px] min-w-[280px] bg-background p-0 text-left font-normal">
+            <th className="sticky left-0 z-[1] w-[160px] min-w-[160px] bg-background p-0 text-left font-normal sm:w-[280px] sm:min-w-[280px]">
               <span className="flex h-[34px] items-center gap-1.5 px-2 text-[13px] text-muted-foreground">
                 <PropertyIcon type="title" />
                 {t("db.titleColumn")}

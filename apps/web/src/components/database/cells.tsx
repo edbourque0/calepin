@@ -619,10 +619,11 @@ export function TitleCell({
       </span>
       <Link
         to={`/p/${row.id}`}
+        aria-label={t("db.open")}
         className="flex h-6 shrink-0 items-center gap-1 rounded-sm border border-border bg-background px-1.5 text-xs font-medium text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/title:opacity-100 hover:text-foreground focus-visible:opacity-100 max-md:opacity-100"
       >
         <ArrowUpRight className="size-3.5" />
-        {t("db.open")}
+        <span className="max-md:hidden">{t("db.open")}</span>
       </Link>
       {children}
     </div>

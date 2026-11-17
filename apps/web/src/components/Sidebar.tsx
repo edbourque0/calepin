@@ -70,7 +70,7 @@ export function Sidebar({
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">{t("nav.search")}</span>
-          <Kbd>{isMac ? "⌘K" : "Ctrl K"}</Kbd>
+          <Kbd className="pointer-coarse:hidden">{isMac ? "⌘K" : "Ctrl K"}</Kbd>
         </button>
         <NavItem to="/" icon={<Home className="size-4" />} onClick={onNavigate} end>
           {t("nav.home")}
