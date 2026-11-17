@@ -25,6 +25,7 @@ import { sharingRoutes } from "./routes/sharing.js";
 import { tokenRoutes } from "./routes/tokens.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { aiRoutes } from "./routes/ai.js";
+import { importRoutes } from "./routes/imports.js";
 import { aiReady, getAiSettings } from "./lib/ai.js";
 import { versionRoutes } from "./routes/versions.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
@@ -99,6 +100,7 @@ const api = new Hono<AppEnv>()
   .route("/", fileUploadRoutes)
   .route("/", webhookRoutes)
   .route("/", aiRoutes)
+  .route("/", importRoutes)
   .route("/", tokenRoutes);
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

@@ -9,6 +9,7 @@ import { SearchDialog } from "./SearchDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { Sidebar } from "./Sidebar";
 import { TrashDialog } from "./TrashDialog";
+import { ImportDialog } from "./ImportDialog";
 import { IconButton } from "./ui";
 
 const collapsedStore = storage<boolean>("sidebar-collapsed", false);
@@ -22,7 +23,7 @@ export function AppShell() {
   useWorkspaceEvents();
   const [collapsed, setCollapsed] = useState(collapsedStore.get);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [dialog, setDialog] = useState<"search" | "trash" | "settings" | null>(null);
+  const [dialog, setDialog] = useState<"search" | "trash" | "settings" | "import" | null>(null);
 
   // Warm up the editor bundle so the first page opens instantly.
   useEffect(() => {
@@ -77,6 +78,7 @@ export function AppShell() {
         setDialog("search");
       }}
       onTrash={() => setDialog("trash")}
+      onImport={() => setDialog("import")}
       onSettings={() => setDialog("settings")}
     />
   );
@@ -117,6 +119,7 @@ export function AppShell() {
 
       <SearchDialog open={dialog === "search"} onClose={() => setDialog(null)} />
       <TrashDialog open={dialog === "trash"} onClose={() => setDialog(null)} />
+      <ImportDialog open={dialog === "import"} onClose={() => setDialog(null)} />
       <SettingsDialog open={dialog === "settings"} onClose={() => setDialog(null)} />
     </ShellContext.Provider>
   );

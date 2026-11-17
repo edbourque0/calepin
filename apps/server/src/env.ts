@@ -28,6 +28,7 @@ const schema = z.object({
   /** Where uploaded files are kept when storage is "local". */
   FILES_DIR: z.string().default("./data/files"),
   MAX_UPLOAD_MB: z.coerce.number().min(1).default(50),
+  MAX_IMPORT_MB: z.coerce.number().min(1).default(500),
   /** Days of version history to keep (thinned to one per day after a week). */
   VERSION_RETENTION_DAYS: z.coerce.number().int().min(7).default(90),
 });

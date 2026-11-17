@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsLeft, FileText, Home, LogOut, Plus, Search, Settings, Table2, Trash2 } from "lucide-react";
+import { ChevronsLeft, FileText, FileUp, Home, LogOut, Plus, Search, Settings, Table2, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { authClient } from "@/lib/auth-client";
@@ -17,12 +17,14 @@ export function Sidebar({
   onNavigate,
   onSearch,
   onTrash,
+  onImport,
   onSettings,
 }: {
   onCollapse: () => void;
   onNavigate: () => void;
   onSearch: () => void;
   onTrash: () => void;
+  onImport: () => void;
   onSettings: () => void;
 }) {
   const { t } = useI18n();
@@ -121,6 +123,9 @@ export function Sidebar({
       </nav>
 
       <div className="flex flex-col gap-px border-t border-sidebar-border px-2 py-2">
+        <SideButton icon={<FileUp className="size-4" />} onClick={onImport}>
+          {t("nav.import")}
+        </SideButton>
         <SideButton icon={<Trash2 className="size-4" />} onClick={onTrash}>
           {t("nav.trash")}
         </SideButton>
