@@ -176,6 +176,8 @@ export type ViewConfig = {
   endDateProperty?: string | null;
   /** Gallery: "content" shows the first image of the row page, "none" hides covers. */
   cover?: "content" | "none";
+  /** Table: calculation shown under each column ("title" for the title column). */
+  calculations?: Record<string, import("./calc").CalcFn | null>;
   cardSize?: "small" | "medium" | "large";
 };
 export type View = {

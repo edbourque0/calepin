@@ -12,7 +12,7 @@ import { canEdit, getPageAccess } from "./lib/workspaces.js";
 import { emitDatabase, emitWorkspace } from "./lib/events.js";
 import { noteAuthor, snapshot } from "./lib/versions.js";
 import { notifyUpdated } from "./lib/webhooks.js";
-import { extractCover, extractText, getTitle, TITLE_TEXT } from "./lib/ydoc.js";
+import { extractCover, extractText, getTitle, seedTitle, TITLE_TEXT } from "./lib/ydoc.js";
 
 type Context = { userId: string; role: WorkspaceRole };
 
@@ -53,8 +53,13 @@ export const hocuspocus = new Hocuspocus<Context>({
     if (row.state) {
       Y.applyUpdate(document, row.state);
     } else if (row.title) {
-      // Page created through the API with a title but never opened yet.
-      document.getText(TITLE_TEXT).insert(0, row.title);
+      // Page created through the API with a title but never opened yet: seed the title (the same way
+      // every time) and save it at once, so a reload never inserts it a second time.
+      seedTitle(document, documentName, row.title);
+      await db
+        .update(pages)
+        .set({ yjsState: Y.encodeStateAsUpdate(document) })
+        .where(eq(pages.id, documentName));
     }
     return document;
   },

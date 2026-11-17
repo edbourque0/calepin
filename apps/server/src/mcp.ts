@@ -88,6 +88,28 @@ function sniffMime(d: Uint8Array) {
   return undefined;
 }
 
+const CALC_FNS = [
+  "count_all",
+  "count_values",
+  "count_empty",
+  "count_unique",
+  "percent_empty",
+  "percent_not_empty",
+  "sum",
+  "average",
+  "median",
+  "min",
+  "max",
+  "range",
+  "earliest",
+  "latest",
+  "date_range",
+  "checked",
+  "unchecked",
+  "percent_checked",
+  "percent_unchecked",
+] as const;
+
 const pageUrl = (id: string) => `${env.PUBLIC_URL.replace(/\/$/, "")}/p/${id}`;
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -823,6 +845,14 @@ function buildServer(user: AppUser) {
         sort_by: z.string().optional().describe("Property name or id to sort by"),
         sort_direction: z.enum(["asc", "desc"]).optional(),
         hidden_properties: z.array(z.string()).optional().describe("Property names or ids to hide"),
+        totals: z
+          .record(z.string(), z.enum(CALC_FNS))
+          .optional()
+          .describe(
+            'Table: calculation under each column, keyed by property name/id or "title" — e.g. {"Prix": "sum", ' +
+              '"title": "count_all"}. Counts work on any column; sum/average/median/min/max/range on numbers; ' +
+              "earliest/latest/date_range on dates; checked/unchecked/percent_checked on checkboxes.",
+          ),
       },
     },
     guard(async (a) => {
@@ -854,6 +884,15 @@ function buildServer(user: AppUser) {
         const sid = a.sort_by.toLowerCase() === "title" ? "title" : resolveProperty(database.properties, a.sort_by)?.id;
         if (!sid) return fail(`No property "${a.sort_by}".`);
         config.sorts = [{ propertyId: sid, dir: a.sort_direction ?? "asc" }];
+      }
+      if (a.totals) {
+        const calcs: Record<string, string> = {};
+        for (const [key, fn] of Object.entries(a.totals)) {
+          const id = key.toLowerCase() === "title" ? "title" : resolveProperty(database.properties, key)?.id;
+          if (!id) return fail(`No property "${key}".`);
+          calcs[id] = fn;
+        }
+        config.calculations = calcs;
       }
       if (a.hidden_properties?.length)
         config.hidden = a.hidden_properties.map((h) => resolveProperty(database.properties, h)?.id).filter(Boolean);
@@ -1026,7 +1065,10 @@ async function describeDatabase(databaseId: string, limit: number) {
           : (v.type === "calendar" || v.type === "timeline") && cfg.dateProperty
             ? ` by ${name(cfg.dateProperty)}${cfg.endDateProperty ? ` → ${name(cfg.endDateProperty)}` : ""}`
             : "";
-      return `- ${v.name} (${v.type}${extra})`;
+      const totals = Object.entries((cfg.calculations as Record<string, string | null> | undefined) ?? {})
+        .filter(([, fn]) => fn)
+        .map(([id, fn]) => `${id === "title" ? "Title" : name(id)}: ${fn}`);
+      return `- ${v.name} (${v.type}${extra})${totals.length ? ` — totals: ${totals.join(", ")}` : ""}`;
     }),
     "",
     "## Rows",

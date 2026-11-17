@@ -276,6 +276,7 @@ export function DatabaseView({ databaseId, inline = false }: { databaseId: strin
           rows={rows}
           canEdit={canEdit}
           onHideProperty={(id) => change({ hidden: [...(view.config.hidden ?? []), id] })}
+          onCalculation={(id, fn) => change({ calculations: { ...view.config.calculations, [id]: fn } })}
         />
       )}
       <div className="text-xs text-muted-foreground tabular-nums">{t("db.rows", { n: rows.length })}</div>

@@ -1,9 +1,10 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Popover } from "@/components/ui";
 import type { DatabaseData, Property, Row, SelectOption, View } from "@/lib/api";
 import { propertyOptions, READ_ONLY_TYPES, useDatabaseActions, valuesFromFilters } from "@/lib/database";
-import { useI18n } from "@/lib/i18n";
+import { type CalcFn, calcsFor, calculate } from "@/lib/calc";
+import { localeOf, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { EditableValue, PropertyIcon, TitleCell } from "./cells";
 import { AddPropertyMenu, PropertyMenu } from "./PropertyMenu";
@@ -30,12 +31,14 @@ export function TableView({
   rows,
   canEdit,
   onHideProperty,
+  onCalculation,
 }: {
   data: DatabaseData;
   view: View;
   rows: Row[];
   canEdit: boolean;
   onHideProperty: (id: string) => void;
+  onCalculation: (columnId: string, fn: CalcFn | null) => void;
 }) {
   const { t } = useI18n();
   const actions = useDatabaseActions(data.database.id);
@@ -159,6 +162,20 @@ export function TableView({
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="group/calc">
+            <td className="sticky left-0 z-[1] bg-background p-0">
+              <CalcCell column="title" view={view} rows={rows} canEdit={canEdit} onChange={onCalculation} />
+            </td>
+            {columns.map((p) => (
+              <td key={p.id} className="p-0">
+                <CalcCell column={p} view={view} rows={rows} canEdit={canEdit} onChange={onCalculation} />
+              </td>
+            ))}
+            {canEdit && <td />}
+            <td />
+          </tr>
+        </tfoot>
       </table>
       {canEdit && (
         <button
@@ -170,5 +187,86 @@ export function TableView({
         </button>
       )}
     </div>
+  );
+}
+
+/** A cell of the totals row: the chosen calculation, or "Calculate" on hover to pick one. */
+function CalcCell({
+  column,
+  view,
+  rows,
+  canEdit,
+  onChange,
+}: {
+  column: Property | "title";
+  view: View;
+  rows: Row[];
+  canEdit: boolean;
+  onChange: (columnId: string, fn: CalcFn | null) => void;
+}) {
+  const { t, lang } = useI18n();
+  const id = column === "title" ? "title" : column.id;
+  const fn = view.config.calculations?.[id] ?? null;
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const groups = calcsFor(column, rows);
+  const valid = fn && groups.flat().includes(fn) ? fn : null;
+  if (!valid && !canEdit) return <div className="h-8" />;
+
+  return (
+    <>
+      <button
+        ref={ref}
+        disabled={!canEdit}
+        onClick={() => setOpen(true)}
+        className={cn(
+          "flex h-8 w-full items-center justify-end gap-1.5 px-2 text-[13px] whitespace-nowrap hover:bg-accent disabled:hover:bg-transparent",
+          !valid && "opacity-0 group-hover/calc:opacity-100 focus-visible:opacity-100",
+          open && "opacity-100",
+        )}
+      >
+        {valid ? (
+          <>
+            <span className="caps-label">{t(`calc.short.${valid}`)}</span>
+            <span className="font-medium tabular-nums">{calculate(valid, column, rows, localeOf(lang))}</span>
+          </>
+        ) : (
+          <span className="flex items-center gap-1 text-muted-foreground">
+            {t("calc.calculate")}
+            <ChevronDown className="size-3" />
+          </span>
+        )}
+      </button>
+      <Popover
+        anchor={ref}
+        open={open}
+        onClose={() => setOpen(false)}
+        align="end"
+        className="max-h-80 w-56 overflow-y-auto"
+      >
+        {[[null] as (CalcFn | null)[], ...groups].map((group, i) => (
+          <div key={i} className={cn("flex flex-col", i > 0 && "mt-1 border-t border-border pt-1")}>
+            {group.map((g) => (
+              <button
+                key={g ?? "none"}
+                onClick={() => {
+                  onChange(id, g);
+                  setOpen(false);
+                }}
+                className="flex h-8 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-accent"
+              >
+                <span className="flex-1">{t(g ? `calc.${g}` : "calc.none")}</span>
+                {g !== null && rows.length > 0 && (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {calculate(g, column, rows, localeOf(lang))}
+                  </span>
+                )}
+                {(valid ?? null) === g && <Check className="size-3.5" />}
+              </button>
+            ))}
+          </div>
+        ))}
+      </Popover>
+    </>
   );
 }

@@ -44,6 +44,7 @@ const viewConfig = z
     hidden: z.array(z.string()).optional(),
     widths: z.record(z.string(), z.number().min(60).max(1200)).optional(),
     order: z.array(z.string()).optional(),
+    calculations: z.record(z.string(), z.string().max(40).nullable()).optional(),
   })
   .passthrough();
 

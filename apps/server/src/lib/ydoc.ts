@@ -51,3 +51,28 @@ export function extractCover(doc: Y.Doc): string | null {
   };
   return walk(doc.getXmlFragment(BLOCKS_FRAGMENT));
 }
+
+/**
+ * The initial title of a page that has a title but no document yet (created through the API or MCP).
+ * Written with a client id derived from the page id, so seeding the same page twice produces the same
+ * Yjs items instead of a second copy of the title.
+ */
+export function seedTitle(document: Y.Doc, pageId: string, title: string) {
+  let hash = 0;
+  for (const ch of pageId) hash = (Math.imul(hash, 31) + ch.charCodeAt(0)) >>> 0;
+  const seed = new Y.Doc();
+  seed.clientID = (hash % 0x7ffffff0) + 1;
+  seed.getText(TITLE_TEXT).insert(0, title);
+  Y.applyUpdate(document, Y.encodeStateAsUpdate(seed));
+  seed.destroy();
+}
+
+/** "AbcAbc" → length of "Abc" when a title is the same text repeated; null otherwise. */
+export function repeatedTitle(title: string): number | null {
+  for (let len = 3; len <= title.length / 2; len++) {
+    if (title.length % len) continue;
+    const unit = title.slice(0, len);
+    if (unit.repeat(title.length / len) === title) return len;
+  }
+  return null;
+}

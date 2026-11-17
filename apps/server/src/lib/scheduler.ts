@@ -6,7 +6,8 @@ import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { files, pages } from "../db/schema.js";
 import * as Y from "yjs";
-import { extractCover } from "./ydoc.js";
+import { extractCover, getTitle, repeatedTitle, TITLE_TEXT } from "./ydoc.js";
+import { randomString } from "./tokens.js";
 import { removeFile } from "./storage.js";
 
 /** Files whose page was deleted forever (a day ago or more). */
@@ -29,6 +30,39 @@ async function removeOrphanFiles() {
     removed++;
   }
   return removed;
+}
+
+/**
+ * One-time repair of titles doubled by an old bug ("NotesNotes"): pages created through the API had their
+ * title inserted again each time the server reloaded them. Keeps one copy, then makes every device drop its
+ * local cache (which may hold the extra copies) and reload from the server.
+ */
+async function repairDoubledTitles() {
+  if (await getSetting<boolean>("titlesRepaired", false)) return;
+  const rows = await db
+    .select({ id: pages.id, title: pages.title, state: pages.yjsState })
+    .from(pages)
+    .where(sql`${pages.yjsState} IS NOT NULL`);
+  let fixed = 0;
+  for (const r of rows) {
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, r.state!);
+    const text = doc.getText(TITLE_TEXT);
+    const len = repeatedTitle(text.toString());
+    if (len) {
+      text.delete(len, text.length - len);
+      await db
+        .update(pages)
+        .set({ yjsState: Y.encodeStateAsUpdate(doc), title: getTitle(doc) })
+        .where(eq(pages.id, r.id));
+      fixed++;
+      console.log(`[titles] "${text.toString()}" (page ${r.id})`);
+    }
+    doc.destroy();
+  }
+  await setSetting("epoch", { id: randomString(12) });
+  await setSetting("titlesRepaired", true);
+  if (fixed) console.log(`[titles] repaired ${fixed} doubled title(s)`);
 }
 
 /** One-time fill of gallery covers for rows saved before covers existed. */
@@ -56,6 +90,7 @@ async function backfillCovers() {
  */
 export function startScheduler() {
   backfillCovers().catch((e) => console.error("[covers]", e));
+  repairDoubledTitles().catch((e) => console.error("[titles]", e));
   const tick = async () => {
     try {
       const cfg = await getBackupSettings();
