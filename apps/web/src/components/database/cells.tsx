@@ -252,8 +252,8 @@ type EditProps = {
   data: DatabaseData;
   canEdit: boolean;
   onChange: (value: unknown) => void;
-  /** Adds options to a select property (returns nothing; the parent updates the schema). */
-  onAddOption: (prop: Property, option: SelectOption) => void;
+  /** Adds an option to a select property; resolves once the server has it. */
+  onAddOption: (prop: Property, option: SelectOption) => Promise<unknown>;
   className?: string;
   /** "cell" in tables and boards, "field" on a row page. */
   variant?: "cell" | "field";
@@ -383,10 +383,20 @@ function OptionPicker({ prop, row, onChange, onAddOption }: EditProps) {
     else onChange(selected[0] === id ? null : id);
     setQ("");
   };
-  const create = () => {
-    const option: SelectOption = { id: newId(), name: q.trim(), color: TAG_COLORS[opts.length % TAG_COLORS.length]! };
-    onAddOption(prop, option);
-    toggle(option.id);
+  const [creating, setCreating] = useState(false);
+  const create = async () => {
+    const name = q.trim();
+    if (!name || creating) return;
+    const option: SelectOption = { id: newId(), name, color: TAG_COLORS[opts.length % TAG_COLORS.length]! };
+    setCreating(true);
+    try {
+      // The option must exist on the server before a row points to it; otherwise the server would
+      // take the unknown id for a new option's name.
+      await onAddOption(prop, option);
+      toggle(option.id);
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (

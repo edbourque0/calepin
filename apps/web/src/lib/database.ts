@@ -78,14 +78,25 @@ export function useDatabaseActions(id: string) {
       name?: string;
       type?: PropertyType;
       options?: SelectOption[];
+      addOptions?: SelectOption[];
       config?: Record<string, unknown>;
       before?: string | null;
     }) => api.patch<Property>(`/databases/${id}/properties/${propId}`, body),
-    onMutate: ({ propId, name, options }) =>
+    onMutate: ({ propId, name, options, addOptions }) =>
       set((d) => ({
         ...d,
         properties: d.properties.map((p) =>
-          p.id === propId ? { ...p, name: name ?? p.name, config: options ? { ...p.config, options } : p.config } : p,
+          p.id === propId
+            ? {
+                ...p,
+                name: name ?? p.name,
+                config: options
+                  ? { ...p.config, options }
+                  : addOptions
+                    ? { ...p.config, options: [...propertyOptions(p), ...addOptions] }
+                    : p.config,
+              }
+            : p,
         ),
       })),
     onSettled: refresh,

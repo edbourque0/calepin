@@ -2,7 +2,7 @@ import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Popover } from "@/components/ui";
 import type { DatabaseData, Property, Row, SelectOption, View } from "@/lib/api";
-import { propertyOptions, READ_ONLY_TYPES, useDatabaseActions, valuesFromFilters } from "@/lib/database";
+import { READ_ONLY_TYPES, useDatabaseActions, valuesFromFilters } from "@/lib/database";
 import { type CalcFn, calcsFor, calculate } from "@/lib/calc";
 import { localeOf, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -21,8 +21,9 @@ const widthOf = (p: Property) =>
 
 export function useOptionAdder(databaseId: string) {
   const actions = useDatabaseActions(databaseId);
+  // Resolves once the server knows the option, so the row value set next refers to an existing option.
   return (prop: Property, option: SelectOption) =>
-    actions.updateProperty.mutate({ propId: prop.id, options: [...propertyOptions(prop), option] });
+    actions.updateProperty.mutateAsync({ propId: prop.id, addOptions: [option] });
 }
 
 export function TableView({

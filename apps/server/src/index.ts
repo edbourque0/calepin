@@ -125,8 +125,23 @@ if (webDist && existsSync(path.join(webDist, "index.html"))) {
       onFound: (_p, c) => c.header("Cache-Control", "public, max-age=31536000, immutable"),
     }),
   );
-  app.use("*", serveStatic({ root: path.relative(process.cwd(), webDist) }));
-  app.get("*", (c) => c.html(indexHtml));
+  // The service worker, its loader, the manifest and the HTML must never be cached (by the browser or a
+  // proxy such as Cloudflare), or installed apps keep running an old version.
+  app.use(
+    "*",
+    serveStatic({
+      root: path.relative(process.cwd(), webDist),
+      onFound: (p, c) => {
+        if (/(^|\/)(sw\.js|registerSW\.js|manifest\.webmanifest|index\.html)$/.test(p) || p.endsWith("/"))
+          c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+        else c.header("Cache-Control", "public, max-age=3600");
+      },
+    }),
+  );
+  app.get("*", (c) => {
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    return c.html(indexHtml);
+  });
 } else {
   app.get("/", (c) => c.text("Calepin API is running. Start the web app with `pnpm dev`."));
 }

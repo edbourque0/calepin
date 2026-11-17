@@ -282,6 +282,8 @@ export const databaseRoutes = new Hono<AppEnv>()
         name: z.string().trim().min(1).max(100).optional(),
         type: propertyType.optional(),
         options: z.array(option).max(200).optional(),
+        /** Options to add to the current list (safe when several are created quickly). */
+        addOptions: z.array(option).max(50).optional(),
         config: z.record(z.string(), z.unknown()).optional(),
         /** Place before this property id (null = last). */
         before: z.string().nullable().optional(),
@@ -290,6 +292,16 @@ export const databaseRoutes = new Hono<AppEnv>()
     if (body.type && body.type !== prop.type) prop = await convertProperty(prop, body.type);
     const patch: Partial<typeof dbProperties.$inferInsert> = {};
     if (body.name) patch.name = body.name;
+    if (body.addOptions?.length && !body.options) {
+      const current = (prop.config.options as { id: string; name: string; color: string }[] | undefined) ?? [];
+      const fresh = body.addOptions.filter(
+        (o) => !current.some((c) => c.id === o.id || c.name.toLowerCase() === o.name.toLowerCase()),
+      );
+      if (fresh.length) {
+        prop.config = { ...prop.config, options: [...current, ...fresh] };
+        patch.config = prop.config;
+      }
+    }
     if (body.options || body.config) {
       const config = { ...prop.config, ...(body.config ?? {}) };
       if (body.options) config.options = body.options;

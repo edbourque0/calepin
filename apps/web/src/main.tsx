@@ -2,8 +2,8 @@ import "./styles.css";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
-import { registerSW } from "virtual:pwa-register";
 import { AppShell } from "./components/AppShell";
+import { UpdatePrompt } from "./components/UpdatePrompt";
 import { Spinner } from "./components/ui";
 import { api, ApiError, type Me } from "./lib/api";
 import { I18nProvider } from "./lib/i18n";
@@ -12,8 +12,6 @@ import { Home } from "./routes/Home";
 import { Invite } from "./routes/Invite";
 import { Login } from "./routes/Login";
 import { PageView } from "./routes/PageView";
-
-registerSW({ immediate: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +62,7 @@ createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>
     <I18nProvider>
       <RouterProvider router={router} />
+      <UpdatePrompt />
     </I18nProvider>
   </QueryClientProvider>,
 );
